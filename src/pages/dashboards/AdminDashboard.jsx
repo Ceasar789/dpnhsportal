@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
+import { Sun, Moon, Search, LogOut } from 'lucide-react';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { userData } = useAuth();
+  const { userData, logout } = useAuth();
 
   // ==================== FIREBASE AUTH REDIRECT ====================
   useEffect(() => {
@@ -105,6 +106,7 @@ const AdminDashboard = () => {
   const [autoBackup, setAutoBackup] = useState(true);
   const [activityLogs, setActivityLogs] = useState('90 days');
   const [theme, setTheme] = useState('Dark');
+  const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState('English');
   const [portalName, setPortalName] = useState('AcademicPortal');
   const [academicYear, setAcademicYear] = useState('2025–2026');
@@ -392,6 +394,7 @@ const AdminDashboard = () => {
   return (
     <>
       <style>{`
+        /* ── DARK MODE (default) ── */
         :root {
           --bg: #1a1d23;
           --sidebar-bg: #1e2128;
@@ -408,20 +411,144 @@ const AdminDashboard = () => {
           --red: #ef4444;
           --purple: #a78bfa;
           --teal: #2dd4bf;
-          --nav-bg: #16191f;
+          --nav-bg: #ffffff;
+          --nav-border: #e2e8f0;
+          --nav-text: #1a2b4a;
+          --nav-text-muted: #4a5568;
+          --nav-link-active-color: #1a2b4a;
+          --nav-link-hover-bg: #f1f5f9;
+          --nav-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          --toggle-bg: #e2e8f0;
+          --toggle-icon: #4a5568;
         }
+        /* ── LIGHT MODE ── */
+        :root.light {
+          --bg: #f4f6fb;
+          --sidebar-bg: #f8fafc;
+          --card-bg: #ffffff;
+          --card2: #f1f5f9;
+          --border: #e2e8f0;
+          --text: #1a2b4a;
+          --text-muted: #4a5568;
+          --text-dim: #94a3b8;
+          --accent: #2563eb;
+          --accent-hover: #1d4ed8;
+          --green: #16a34a;
+          --yellow: #d97706;
+          --red: #dc2626;
+          --purple: #7c3aed;
+          --teal: #0d9488;
+          --nav-bg: #ffffff;
+          --nav-border: #e2e8f0;
+          --nav-text: #1a2b4a;
+          --nav-text-muted: #4a5568;
+          --nav-link-active-color: #1a2b4a;
+          --nav-link-hover-bg: #f1f5f9;
+          --nav-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          --toggle-bg: #1a2b4a;
+          --toggle-icon: #ffffff;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; font-size: 14px; }
 
-        nav { background: var(--nav-bg); height: 48px; display: flex; align-items: center; padding: 0 20px; gap: 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-        .nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; flex-shrink: 0; }
-        .nav-logo-icon { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #fff; }
-        .nav-logo img { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
-        .nav-links { display: flex; gap: 4px; flex: 1; }
-        .nav-link { padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--text-muted); font-size: 13px; transition: all .15s; border: none; background: none; }
-        .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.06); }
-        .nav-link.active { color: var(--accent); }
-        .nav-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; margin-left: auto; cursor: pointer; }
+        /* ── TOP NAV (DPNHS style) ── */
+        nav {
+          background: var(--nav-bg);
+          height: 60px;
+          display: flex;
+          align-items: center;
+          padding: 0 28px;
+          gap: 0;
+          border-bottom: 1px solid var(--nav-border);
+          box-shadow: var(--nav-shadow);
+          position: sticky;
+          top: 0;
+          z-index: 100;
+        }
+        .nav-logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          text-decoration: none;
+          flex-shrink: 0;
+          margin-right: 32px;
+        }
+        .nav-logo img {
+          width: 42px; height: 42px;
+          border-radius: 50%;
+          object-fit: cover;
+          flex-shrink: 0;
+          border: 2px solid #e2e8f0;
+        }
+        .nav-logo-icon {
+          width: 42px; height: 42px;
+          background: #0d2b5c;
+          border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 13px; font-weight: 900;
+          color: #FEB300; flex-shrink: 0;
+        }
+        .nav-logo-text { display: flex; flex-direction: column; line-height: 1.2; }
+        .nav-logo-text span:first-child { font-weight: 700; font-size: 14px; color: var(--nav-text); }
+        .nav-logo-text span:last-child { font-size: 10px; color: var(--nav-text-muted); font-weight: 400; }
+
+        .nav-links { display: flex; gap: 2px; flex: 1; }
+        .nav-link {
+          padding: 6px 14px;
+          cursor: pointer;
+          color: var(--nav-text-muted);
+          font-size: 13px; font-weight: 600;
+          letter-spacing: 0.03em;
+          transition: all .15s;
+          border: none; background: none;
+          border-radius: 6px;
+          position: relative;
+        }
+        .nav-link:hover { color: var(--nav-text); background: var(--nav-link-hover-bg); }
+        .nav-link.active { color: var(--nav-link-active-color); }
+        .nav-link.active::after {
+          content: '';
+          position: absolute;
+          bottom: -6px; left: 50%;
+          transform: translateX(-50%);
+          width: 20px; height: 2px;
+          background: #d4a843;
+          border-radius: 2px;
+        }
+
+        .nav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .nav-search-btn {
+          width: 34px; height: 34px; border-radius: 50%;
+          border: none; background: transparent; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--nav-text-muted); transition: background .15s;
+        }
+        .nav-search-btn:hover { background: var(--nav-link-hover-bg); }
+        .nav-toggle-btn {
+          width: 34px; height: 34px; border-radius: 50%;
+          border: none; background: var(--toggle-bg); cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--toggle-icon); transition: all .2s;
+        }
+        .nav-toggle-btn:hover { opacity: 0.8; }
+        .nav-avatar {
+          width: 34px; height: 34px; border-radius: 50%;
+          background: #0d2b5c;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 11px; font-weight: 700; color: #FEB300;
+          cursor: pointer; border: 2px solid #e2e8f0;
+          flex-shrink: 0;
+        }
+        .nav-logout-btn {
+          display: flex; align-items: center; gap: 6px;
+          padding: 6px 14px; border-radius: 7px;
+          border: 1px solid var(--nav-border);
+          background: transparent; cursor: pointer;
+          color: var(--nav-text-muted); font-size: 13px; font-weight: 600;
+          transition: all .15s;
+        }
+        .nav-logout-btn:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
 
         .layout { display: flex; flex: 1; min-height: calc(100vh - 48px); }
         .sidebar { width: 200px; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 16px 0; flex-shrink: 0; }
@@ -598,27 +725,57 @@ const AdminDashboard = () => {
       `}</style>
 
       {/* ==================== NAV ==================== */}
-      <nav>
+      <nav className={darkMode ? '' : 'light'} style={{ background: 'var(--nav-bg)' }}>
+
+        {/* Logo */}
         <a className="nav-logo" href="#">
           {!logoError ? (
-            <img src="/logo.png" alt="DPNHS Logo" onError={() => setLogoError(true)} />
+            <img src="/capstonelogo.png" alt="DPNHS Logo" onError={() => setLogoError(true)} />
           ) : (
             <div className="nav-logo-icon">DP</div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-            <span style={{ fontWeight: 700, fontSize: '14px' }}>Dela Paz National High School</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>AcademicPortal</span>
+          <div className="nav-logo-text">
+            <span>Dela Paz National High School</span>
+            <span>Admin Portal</span>
           </div>
         </a>
+
+        {/* Nav Links */}
         <div className="nav-links">
-          <button className={`nav-link ${activePage === 'overview' ? 'active' : ''}`} onClick={() => switchPage('overview')}>Overview</button>
-          <button className={`nav-link ${activePage === 'users' ? 'active' : ''}`} onClick={() => switchPage('users')}>Users</button>
-          <button className={`nav-link ${activePage === 'news' ? 'active' : ''}`} onClick={() => switchPage('news')}>News</button>
-          <button className={`nav-link ${activePage === 'calendar' ? 'active' : ''}`} onClick={() => switchPage('calendar')}>Calendar</button>
-          <button className={`nav-link ${activePage === 'memos' ? 'active' : ''}`} onClick={() => switchPage('memos')}>Memos</button>
-          <button className={`nav-link ${activePage === 'settings' ? 'active' : ''}`} onClick={() => switchPage('settings')}>Settings</button>
+          <button className={`nav-link ${activePage === 'overview'  ? 'active' : ''}`} onClick={() => switchPage('overview')}>OVERVIEW</button>
+          <button className={`nav-link ${activePage === 'users'     ? 'active' : ''}`} onClick={() => switchPage('users')}>USERS</button>
+          <button className={`nav-link ${activePage === 'news'      ? 'active' : ''}`} onClick={() => switchPage('news')}>NEWS</button>
+          <button className={`nav-link ${activePage === 'calendar'  ? 'active' : ''}`} onClick={() => switchPage('calendar')}>CALENDAR</button>
+          <button className={`nav-link ${activePage === 'memos'     ? 'active' : ''}`} onClick={() => switchPage('memos')}>MEMOS</button>
+          <button className={`nav-link ${activePage === 'settings'  ? 'active' : ''}`} onClick={() => switchPage('settings')}>SETTINGS</button>
         </div>
-        <div className="nav-avatar">AD</div>
+
+        {/* Right Actions */}
+        <div className="nav-actions">
+          <button className="nav-search-btn" title="Search">
+            <Search size={17} />
+          </button>
+          <button
+            className="nav-toggle-btn"
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            onClick={() => {
+              setDarkMode(!darkMode);
+              document.documentElement.classList.toggle('light', darkMode);
+            }}
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <div className="nav-avatar" title={userData?.name || 'Admin'}>
+            {(userData?.name || 'AD').slice(0, 2).toUpperCase()}
+          </div>
+          <button
+            className="nav-logout-btn"
+            onClick={() => { logout(); navigate('/login'); }}
+          >
+            <LogOut size={14} />
+            Logout
+          </button>
+        </div>
       </nav>
 
       {/* ==================== LAYOUT ==================== */}

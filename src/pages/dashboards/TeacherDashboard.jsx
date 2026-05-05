@@ -1,25 +1,34 @@
 // ============================================
 // FILE: src/pages/dashboards/TeacherDashboard.jsx
-// PURPOSE: Teacher Dashboard — Dark Theme Edition
+// PURPOSE: Teacher Dashboard — Sidebar + Top Header Design
 // ROLE: teacher only
 // FEATURES: Overview, Students, Lesson Plans, Worksheets, Assignments, Grades, Attendance, Announcements
-// DESIGN: Dark sidebar, data tables, cards, tabs — matches screenshots 100%
+// DESIGN: White sidebar (like Admin Portal) + compact top header
 // ============================================
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import DashboardLayout from '../../components/layout/DashboardLayout';
 import {
-  Users, UserPlus, BookOpen, FileText, GraduationCap, 
-  CalendarCheck, Megaphone, Search, Trash2, Edit, X, Check,
-  AlertCircle, Plus, Download, Upload, MoreHorizontal, ChevronDown,
-  FileUp, Eye, Save, RefreshCw, Clock, Calendar, Mail, Activity
+  Users, BookOpen, FileText, GraduationCap,
+  CalendarCheck, Megaphone, Search, Trash2, X, Check,
+  Plus, Upload, Moon, Sun, LogOut, Menu,
+  LayoutDashboard, ClipboardList, ChevronRight, Bell
 } from 'lucide-react';
 
+// ============================================
+// THEME CONTEXT
+// ============================================
+const ThemeContext = createContext({ dark: false, toggleDark: () => {} });
+const useTheme = () => useContext(ThemeContext);
+
+// ============================================
+// MAIN TEACHER DASHBOARD
+// ============================================
 const TeacherDashboard = () => {
   const navigate = useNavigate();
   const { isTeacher } = useAuth();
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     if (!isTeacher()) {
@@ -28,8 +37,8 @@ const TeacherDashboard = () => {
   }, [isTeacher, navigate]);
 
   return (
-    <DashboardLayout role="teacher">
-      <div className="min-h-screen" style={{ backgroundColor: '#121212' }}>
+    <ThemeContext.Provider value={{ dark, toggleDark: () => setDark(d => !d) }}>
+      <TeacherLayout>
         <Routes>
           <Route path="/" element={<TeacherOverviewTab />} />
           <Route path="/students" element={<StudentsTab />} />
@@ -40,8 +49,344 @@ const TeacherDashboard = () => {
           <Route path="/attendance" element={<TeacherAttendanceTab />} />
           <Route path="/announcements" element={<TeacherAnnouncementsTab />} />
         </Routes>
+      </TeacherLayout>
+    </ThemeContext.Provider>
+  );
+};
+
+// ============================================
+// TEACHER LAYOUT (Sidebar + Top Header)
+// ============================================
+const TeacherLayout = ({ children }) => {
+  const { dark, toggleDark } = useTheme();
+  const { logout, userData } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const navItems = [
+    { path: '/teacher-dashboard', icon: LayoutDashboard, label: 'Overview' },
+    { path: '/teacher-dashboard/students', icon: Users, label: 'Students' },
+    { path: '/teacher-dashboard/lesson-plans', icon: BookOpen, label: 'Lesson Plans' },
+    { path: '/teacher-dashboard/worksheets', icon: ClipboardList, label: 'Worksheets' },
+    { path: '/teacher-dashboard/assignments', icon: FileText, label: 'Assignments' },
+    { path: '/teacher-dashboard/grades', icon: GraduationCap, label: 'Grades' },
+    { path: '/teacher-dashboard/attendance', icon: CalendarCheck, label: 'Attendance' },
+    { path: '/teacher-dashboard/announcements', icon: Megaphone, label: 'Announcements' },
+  ];
+
+  const mainBg = dark ? '#0f172a' : '#f1f5f9';
+  const headerBorder = dark ? '#334155' : '#e2e8f0';
+  const textPrimary = dark ? '#f1f5f9' : '#1a2b4a';
+  const textMuted = dark ? '#94a3b8' : '#64748b';
+
+  return (
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR */}
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-white
+          transform transition-transform duration-300 ease-in-out shadow-sm
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        {/* Logo + School Name */}
+        <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img 
+              src="/capstonelogo.png" 
+              alt="School Logo" 
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = '<span class="font-bold text-[#1e3a5f] text-lg">D</span>';
+              }}
+            />
+          </div>
+          <div>
+            <p className="text-[#1a2b4a] font-bold text-sm leading-tight">Dela Paz National High School</p>
+            <p className="text-gray-400 text-[10px]">Teacher Portal</p>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setSidebarOpen(false)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all mb-0.5
+                  ${isActive
+                    ? 'bg-blue-50 text-[#1e3a5f] font-semibold'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1a2b4a]'
+                  }
+                `}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+                {isActive && <ChevronRight size={14} className="ml-auto text-[#1e3a5f]" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* System Status */}
+        <div className="p-5 border-t border-gray-100">
+          <div className="flex items-center gap-2 px-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+            <span className="text-xs text-gray-400">All systems online</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* TOP HEADER */}
+        <header
+          className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0 bg-white"
+          style={{ borderColor: headerBorder }}
+        >
+          <div className="flex items-center gap-3">
+            {/* Mobile menu */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg transition-colors text-gray-400 hover:text-[#1a2b4a]"
+            >
+              <Menu size={20} />
+            </button>
+
+            {/* Page title */}
+            <div className="hidden sm:block">
+              <h1 className="text-base font-bold" style={{ color: textPrimary }}>
+                {navItems.find(n => n.path === location.pathname)?.label || 'Dashboard'}
+              </h1>
+              <p className="text-xs" style={{ color: textMuted }}>
+                Academic Year 2025–2026 · Last updated: today
+              </p>
+            </div>
+          </div>
+
+          {/* Right controls */}
+          <div className="flex items-center gap-2">
+            <button
+              className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400"
+            >
+              <Search size={18} />
+            </button>
+
+            <button
+              onClick={toggleDark}
+              className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400"
+              title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold cursor-default"
+              style={{ backgroundColor: '#1e3a5f', color: '#FEB300' }}
+              title={userData?.name || 'Teacher'}
+            >
+              {(userData?.name || 'T')[0].toUpperCase()}
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-gray-500 hover:bg-gray-50 border border-gray-200"
+            >
+              <LogOut size={15} />
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {/* CONTENT */}
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{ backgroundColor: mainBg }}
+        >
+          {children}
+        </main>
       </div>
-    </DashboardLayout>
+    </div>
+  );
+};
+
+// ============================================
+// SHARED CARD COMPONENT
+// ============================================
+const Card = ({ children, className = '', style = {} }) => {
+  const { dark } = useTheme();
+  return (
+    <div
+      className={`rounded-xl ${className}`}
+      style={{
+        backgroundColor: dark ? '#1e293b' : '#ffffff',
+        border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+        ...style
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// ============================================
+// SHARED INPUT
+// ============================================
+const Input = ({ className = '', ...props }) => {
+  const { dark } = useTheme();
+  return (
+    <input
+      className={`w-full h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
+      style={{
+        backgroundColor: dark ? '#0f172a' : '#f8fafc',
+        border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
+        color: dark ? '#f1f5f9' : '#1a2b4a',
+      }}
+      {...props}
+    />
+  );
+};
+
+// ============================================
+// SHARED TABLE
+// ============================================
+const Table = ({ headers, children }) => {
+  const { dark } = useTheme();
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+            {headers.map(h => (
+              <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider uppercase"
+                style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody style={{ borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+          {children}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const TR = ({ children }) => {
+  const { dark } = useTheme();
+  return (
+    <tr
+      className="transition-colors"
+      style={{ borderBottom: `1px solid ${dark ? '#334155' : '#f1f5f9'}` }}
+      onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#0f172a' : '#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+    >
+      {children}
+    </tr>
+  );
+};
+
+const TD = ({ children, className = '' }) => {
+  const { dark } = useTheme();
+  return (
+    <td className={`px-5 py-3.5 text-sm ${className}`} style={{ color: dark ? '#cbd5e1' : '#475569' }}>
+      {children}
+    </td>
+  );
+};
+
+// ============================================
+// MODAL
+// ============================================
+const Modal = ({ title, onClose, children }) => {
+  const { dark } = useTheme();
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="rounded-xl w-full max-w-md shadow-2xl"
+        style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+          <h2 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// STAT CARD
+// ============================================
+const StatCard = ({ label, value, sub, subColor, icon: Icon }) => {
+  const { dark } = useTheme();
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{label}</p>
+        {Icon && (
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: dark ? '#0f172a' : '#eff6ff' }}>
+            <Icon size={16} style={{ color: '#3b82f6' }} />
+          </div>
+        )}
+      </div>
+      <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{value}</p>
+      <p className="text-xs" style={{ color: subColor || (dark ? '#64748b' : '#94a3b8') }}>
+        {sub}
+      </p>
+    </Card>
+  );
+};
+
+// ============================================
+// BADGE
+// ============================================
+const Badge = ({ children, color, bg }) => (
+  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+    style={{ backgroundColor: bg, color }}>
+    {children}
+  </span>
+);
+
+// ============================================
+// BTN
+// ============================================
+const Btn = ({ children, onClick, className = '', variant = 'default' }) => {
+  const variants = {
+    default: { backgroundColor: '#1e3a5f', color: '#ffffff' },
+    outline: { backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0' },
+    primary: { backgroundColor: '#2563eb', color: '#ffffff' },
+    danger: { backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' },
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 ${className}`}
+      style={variants[variant]}
+    >
+      {children}
+    </button>
   );
 };
 
@@ -49,18 +394,19 @@ const TeacherDashboard = () => {
 // TEACHER OVERVIEW TAB
 // ============================================
 const TeacherOverviewTab = () => {
+  const { dark } = useTheme();
   const stats = [
-    { label: 'STUDENTS', value: '38', sub: 'Grade 9 — Section A', icon: Users },
-    { label: 'ASSIGNMENTS', value: '12', sub: '4 pending review', icon: FileText, subColor: '#4ade80' },
-    { label: 'ATTENDANCE', value: '94%', sub: 'This week', icon: CalendarCheck },
-    { label: 'AVG. GRADE', value: '87.4', sub: '+2.1 vs last month', icon: GraduationCap, subColor: '#4ade80' },
+    { label: 'Students', value: '38', sub: 'Grade 9 — Section A', icon: Users },
+    { label: 'Assignments', value: '12', sub: '4 pending review', icon: FileText, subColor: '#16a34a' },
+    { label: 'Attendance', value: '94%', sub: 'This week', icon: CalendarCheck },
+    { label: 'Avg. Grade', value: '87.4', sub: '+2.1 vs last month', icon: GraduationCap, subColor: '#16a34a' },
   ];
 
   const activeAssignments = [
-    { title: 'Essay: Romeo & Juliet', date: 'May 3', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.15)' },
-    { title: 'Math Problem Set 7', date: 'May 6', status: 'Open', statusColor: '#fbbf24', statusBg: 'rgba(251,191,36,0.15)' },
-    { title: 'Science Lab Report', date: 'Apr 30', status: 'Graded', statusColor: '#4ade80', statusBg: 'rgba(74,222,128,0.15)' },
-    { title: 'History Timeline', date: 'May 9', status: 'Open', statusColor: '#fbbf24', statusBg: 'rgba(251,191,36,0.15)' },
+    { title: 'Essay: Romeo & Juliet', date: 'May 3', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.12)' },
+    { title: 'Math Problem Set 7', date: 'May 6', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
+    { title: 'Science Lab Report', date: 'Apr 30', status: 'Graded', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
+    { title: 'History Timeline', date: 'May 9', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
   ];
 
   const recentActivity = [
@@ -72,55 +418,81 @@ const TeacherOverviewTab = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Dashboard Overview</h2>
+        <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Academic Year 2025–2026 · Last updated: today</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map((stat, idx) => (
-          <div key={idx} className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-            <p className="text-xs font-semibold tracking-wider text-gray-400 mb-2">{stat.label}</p>
-            <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
-            <p className="text-xs" style={{ color: stat.subColor || '#9ca3af' }}>{stat.sub}</p>
-          </div>
+          <StatCard key={idx} {...stat} />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-          <h2 className="text-sm font-semibold tracking-wider text-gray-400 mb-4">ACTIVE ASSIGNMENTS</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
+            style={{ color: dark ? '#64748b' : '#94a3b8' }}>Active Assignments</h2>
           <div className="space-y-3">
             {activeAssignments.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between py-2">
+              <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0"
+                style={{ borderColor: dark ? '#334155' : '#f1f5f9' }}>
                 <div className="flex items-center gap-3">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: item.statusBg, color: item.statusColor }}>{item.status}</span>
-                  <span className="text-sm text-white font-medium">{item.title}</span>
+                  <Badge color={item.statusColor} bg={item.statusBg}>{item.status}</Badge>
+                  <span className="text-sm font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{item.title}</span>
                 </div>
-                <span className="text-xs text-gray-500">{item.date}</span>
+                <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{item.date}</span>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-          <h2 className="text-sm font-semibold tracking-wider text-gray-400 mb-4">RECENT ACTIVITY</h2>
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
+            style={{ color: dark ? '#64748b' : '#94a3b8' }}>Recent Activity</h2>
           <div className="space-y-4">
             {recentActivity.map((item, idx) => (
               <div key={idx} className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: item.color }} />
                 <div>
-                  <p className="text-sm text-gray-200">{item.text}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{item.time}</p>
+                  <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{item.text}</p>
+                  <p className="text-xs mt-0.5" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{item.time}</p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
+
+      <Card className="p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
+          style={{ color: dark ? '#64748b' : '#94a3b8' }}>Class Progress</h2>
+        {[
+          { label: 'Assignments Submitted', value: 30, total: 38, color: '#3b82f6' },
+          { label: 'Attendance Rate', value: 36, total: 38, color: '#10b981' },
+          { label: 'Passing Grades', value: 34, total: 38, color: '#f59e0b' },
+        ].map((item, idx) => (
+          <div key={idx} className="mb-4 last:mb-0">
+            <div className="flex justify-between mb-1">
+              <span className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{item.label}</span>
+              <span className="text-sm font-semibold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{item.value}/{item.total}</span>
+            </div>
+            <div className="h-2 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${(item.value / item.total) * 100}%`, backgroundColor: item.color }} />
+            </div>
+          </div>
+        ))}
+      </Card>
     </div>
   );
 };
 
 // ============================================
-// STUDENTS TAB (CRUD)
+// STUDENTS TAB
 // ============================================
 const StudentsTab = () => {
+  const { dark } = useTheme();
   const [studentList, setStudentList] = useState([
     { id: 1, lrn: '123456789012', name: 'Juan dela Cruz', email: 'juan@school.edu', status: 'Active' },
     { id: 2, lrn: '123456789013', name: 'Maria Santos', email: 'maria@school.edu', status: 'Active' },
@@ -133,98 +505,83 @@ const StudentsTab = () => {
 
   const handleAddStudent = (e) => {
     e.preventDefault();
-    const newStudent = { id: Date.now(), ...formData };
-    setStudentList([...studentList, newStudent]);
+    setStudentList([...studentList, { id: Date.now(), ...formData }]);
     setFormData({ lrn: '', name: '', email: '', status: 'Active' });
     setShowAddModal(false);
   };
 
-  const handleDelete = (id) => setStudentList(studentList.filter(s => s.id !== id));
-
-  const filtered = studentList.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.lrn.includes(searchQuery)
+  const filtered = studentList.filter(s =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.lrn.includes(searchQuery)
   );
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <h1 className="text-xl font-bold text-white">Students — Grade 9A</h1>
-        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>
-          <Plus size={18} /> Add student
-        </button>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Students — Grade 9A</h1>
+        <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> Add Student</Btn>
       </div>
 
       <div className="relative mb-6">
-        <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }} />
         <input
           type="text"
           placeholder="Search students..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full h-11 pl-10 pr-4 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
-          style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full h-10 pl-10 pr-4 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          style={{
+            backgroundColor: dark ? '#1e293b' : '#ffffff',
+            border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+            color: dark ? '#f1f5f9' : '#1a2b4a'
+          }}
         />
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <table className="w-full">
-          <thead>
-            <tr style={{ backgroundColor: '#252525' }}>
-              {['#', 'NAME', 'LRN', 'EMAIL', 'STATUS', 'ACTIONS'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider text-gray-400 uppercase">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y" style={{ borderColor: '#2a2a2a' }}>
-            {filtered.map((s, i) => (
-              <tr key={s.id} className="hover:bg-[#1e1e1e]/5 transition-colors">
-                <td className="px-5 py-3.5 text-sm text-gray-400">{i + 1}</td>
-                <td className="px-5 py-3.5 text-sm text-white font-medium">{s.name}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-400">{s.lrn}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-400">{s.email}</td>
-                <td className="px-5 py-3.5">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    s.status === 'Active' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
-                  }`}>{s.status}</span>
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <button className="text-xs text-blue-400 hover:text-blue-300">Edit</button>
-                    <span className="text-gray-600">·</span>
-                    <button onClick={() => handleDelete(s.id)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <Table headers={['#', 'Name', 'LRN', 'Email', 'Status', 'Actions']}>
+          {filtered.map((s, i) => (
+            <TR key={s.id}>
+              <TD>{i + 1}</TD>
+              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{s.name}</span></TD>
+              <TD>{s.lrn}</TD>
+              <TD>{s.email}</TD>
+              <TD>
+                <Badge
+                  color={s.status === 'Active' ? '#16a34a' : '#dc2626'}
+                  bg={s.status === 'Active' ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)'}
+                >
+                  {s.status}
+                </Badge>
+              </TD>
+              <TD>
+                <div className="flex gap-3">
+                  <button className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
+                  <button onClick={() => setStudentList(studentList.filter(x => x.id !== s.id))}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                </div>
+              </TD>
+            </TR>
+          ))}
+        </Table>
+      </Card>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="rounded-xl w-full max-w-md" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: '#2a2a2a' }}>
-              <h2 className="text-lg font-bold text-white">Add New Student</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleAddStudent} className="p-5 flex flex-col gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">LRN</label>
-                <input type="text" required value={formData.lrn} onChange={e => setFormData({...formData, lrn: e.target.value})} className="w-full h-10 px-3 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" style={{ backgroundColor: '#252525', border: '1px solid #333' }} />
+        <Modal title="Add New Student" onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleAddStudent} className="flex flex-col gap-4">
+            {[
+              { label: 'LRN', key: 'lrn', type: 'text' },
+              { label: 'Full Name', key: 'name', type: 'text' },
+              { label: 'Email', key: 'email', type: 'email' },
+            ].map(({ label, key, type }) => (
+              <div key={key}>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{label}</label>
+                <Input type={type} required value={formData[key]} onChange={e => setFormData({ ...formData, [key]: e.target.value })} />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">FULL NAME</label>
-                <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full h-10 px-3 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" style={{ backgroundColor: '#252525', border: '1px solid #333' }} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">EMAIL</label>
-                <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full h-10 px-3 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" style={{ backgroundColor: '#252525', border: '1px solid #333' }} />
-              </div>
-              <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90 mt-1" style={{ backgroundColor: '#1e3a5f' }}>Add Student</button>
-            </form>
-          </div>
-        </div>
+            ))}
+            <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90 mt-1"
+              style={{ backgroundColor: '#1e3a5f' }}>Add Student</button>
+          </form>
+        </Modal>
       )}
     </div>
   );
@@ -234,94 +591,96 @@ const StudentsTab = () => {
 // LESSON PLANS TAB
 // ============================================
 const LessonPlansTab = () => {
-  const [previousPlans] = useState([
+  const { dark } = useTheme();
+  const previousPlans = [
     { title: 'Photosynthesis & Cell Energy', date: 'Apr 28', ai: true },
     { title: 'The Philippine Revolution', date: 'Apr 21', ai: false },
     { title: 'Linear Equations & Graphing', date: 'Apr 14', ai: true },
     { title: 'Figurative Language in Poetry', date: 'Apr 7', ai: false },
     { title: 'Plate Tectonics', date: 'Mar 31', ai: true },
-  ]);
+  ];
 
-  const [generatedPlan] = useState({
+  const generatedPlan = {
     title: 'The Human Respiratory System',
-    subject: 'Science 9',
-    duration: '60 minutes',
-    date: 'May 6, 2026',
-    strategy: 'Cooperative Learning',
+    subject: 'Science 9', duration: '60 minutes',
+    date: 'May 6, 2026', strategy: 'Cooperative Learning',
     objectives: [
       'Identify the parts of the respiratory system',
       'Explain how gas exchange occurs in the lungs',
       'Relate respiratory function to overall body health'
     ]
-  });
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-xl font-bold text-white">Lesson Plans</h1>
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> AI-Powered Generation
-        </span>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Lesson Plans</h1>
+        <Badge color="#16a34a" bg="rgba(22,163,74,0.12)">AI-Powered Generation</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl p-8 text-center" style={{ backgroundColor: '#1e1e1e', border: '1px dashed #3a3a3a' }}>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: '#252525' }}>
-              <Upload size={24} className="text-blue-400" />
+        <div className="lg:col-span-2 space-y-5">
+          <Card className="p-8 text-center" style={{ border: `1px dashed ${dark ? '#475569' : '#cbd5e1'}` }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ backgroundColor: dark ? '#0f172a' : '#eff6ff' }}>
+              <Upload size={24} className="text-blue-500" />
             </div>
-            <p className="text-white font-semibold mb-1">Upload curriculum PDF</p>
-            <p className="text-xs text-gray-400 mb-4">Drop your syllabus, textbook chapter, or curriculum guide — AI will auto-generate a structured lesson plan</p>
-            <button className="px-5 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Choose PDF file</button>
-          </div>
+            <p className="font-semibold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Upload curriculum PDF</p>
+            <p className="text-xs mb-4" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+              Drop your syllabus or textbook chapter — AI will auto-generate a structured lesson plan
+            </p>
+            <Btn variant="outline">Choose PDF file</Btn>
+          </Card>
 
-          <div className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
+          <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">{generatedPlan.title}</h3>
-              <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-blue-500/15 text-blue-400">AI Generated</span>
+              <h3 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{generatedPlan.title}</h3>
+              <Badge color="#3b82f6" bg="rgba(59,130,246,0.12)">AI Generated</Badge>
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <div><p className="text-xs text-gray-500 uppercase mb-1">Subject</p><p className="text-sm text-white">{generatedPlan.subject}</p></div>
-              <div><p className="text-xs text-gray-500 uppercase mb-1">Duration</p><p className="text-sm text-white">{generatedPlan.duration}</p></div>
-              <div><p className="text-xs text-gray-500 uppercase mb-1">Date</p><p className="text-sm text-white">{generatedPlan.date}</p></div>
-              <div><p className="text-xs text-gray-500 uppercase mb-1">Strategy</p><p className="text-sm text-white">{generatedPlan.strategy}</p></div>
+              {[['Subject', generatedPlan.subject], ['Duration', generatedPlan.duration], ['Date', generatedPlan.date], ['Strategy', generatedPlan.strategy]].map(([k, v]) => (
+                <div key={k}>
+                  <p className="text-xs uppercase mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{k}</p>
+                  <p className="text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{v}</p>
+                </div>
+              ))}
             </div>
             <div className="mb-4">
-              <p className="text-xs text-gray-500 uppercase mb-2">Learning Objectives</p>
-              <div className="space-y-2">
-                {generatedPlan.objectives.map((obj, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <Check size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-gray-300">{obj}</p>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs uppercase mb-2" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Learning Objectives</p>
+              {generatedPlan.objectives.map((obj, i) => (
+                <div key={i} className="flex items-start gap-2 mb-2">
+                  <Check size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{obj}</p>
+                </div>
+              ))}
             </div>
             <div className="flex gap-3">
-              <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Save plan</button>
-              <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Edit</button>
-              <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Regenerate</button>
+              <Btn variant="outline">Save plan</Btn>
+              <Btn variant="outline">Edit</Btn>
+              <Btn variant="outline">Regenerate</Btn>
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-          <h2 className="text-sm font-semibold tracking-wider text-gray-400 mb-4">PREVIOUS LESSON PLANS</h2>
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
+            style={{ color: dark ? '#64748b' : '#94a3b8' }}>Previous Plans</h2>
           <div className="space-y-3">
             {previousPlans.map((plan, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#1e1e1e]/5 transition-colors cursor-pointer">
-                <div className="w-8 h-10 rounded bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-red-400">PDF</span>
+              <div key={idx} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-[#0f172a]">
+                <div className="w-8 h-10 rounded flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.12)' }}>
+                  <span className="text-xs font-bold text-red-500">PDF</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium truncate">{plan.title}</p>
-                  <p className="text-xs text-gray-500">{plan.date}</p>
+                  <p className="text-sm font-medium truncate" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{plan.title}</p>
+                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{plan.date}</p>
                 </div>
-                {plan.ai && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/15 text-green-400">AI</span>}
+                {plan.ai && <Badge color="#16a34a" bg="rgba(22,163,74,0.12)">AI</Badge>}
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
@@ -331,93 +690,94 @@ const LessonPlansTab = () => {
 // WORKSHEETS TAB
 // ============================================
 const WorksheetsTab = () => {
+  const { dark } = useTheme();
   const [activeFilter, setActiveFilter] = useState('All');
   const filters = ['All', 'English', 'Math', 'Science', 'Filipino', 'Araling Panlipunan'];
-
   const stats = [
-    { label: 'TOTAL WORKSHEETS', value: '24' },
-    { label: 'DISTRIBUTED', value: '18', color: '#4ade80' },
-    { label: 'DRAFTS', value: '6', color: '#fbbf24' },
+    { label: 'Total Worksheets', value: '24' },
+    { label: 'Distributed', value: '18', color: '#16a34a' },
+    { label: 'Drafts', value: '6', color: '#d97706' },
   ];
-
   const worksheetList = [
-    { title: 'Parts of Speech — Nouns & Verbs', subject: 'English', pages: '2 pages', items: '20 items', status: 'Distributed', statusColor: '#4ade80' },
-    { title: 'Photosynthesis Fill-in-the-Blank', subject: 'Science', pages: '1 page', items: '15 items', status: 'Distributed', statusColor: '#4ade80' },
-    { title: 'Linear Equations Practice Set', subject: 'Math', pages: '3 pages', items: '30 items', status: 'Draft', statusColor: '#fbbf24' },
-    { title: 'Tayutay at Idyoma — Pagsasanay', subject: 'Filipino', pages: '2 pages', items: '25 items', status: 'Distributed', statusColor: '#4ade80' },
-    { title: 'Rebolusyong Pilipino — Timeline', subject: 'AP', pages: '2 pages', items: '18 items', status: 'Distributed', statusColor: '#4ade80' },
+    { title: 'Parts of Speech — Nouns & Verbs', subject: 'English', pages: '2 pages', items: '20 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
+    { title: 'Photosynthesis Fill-in-the-Blank', subject: 'Science', pages: '1 page', items: '15 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
+    { title: 'Linear Equations Practice Set', subject: 'Math', pages: '3 pages', items: '30 items', status: 'Draft', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
+    { title: 'Tayutay at Idyoma — Pagsasanay', subject: 'Filipino', pages: '2 pages', items: '25 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
+    { title: 'Rebolusyong Pilipino — Timeline', subject: 'AP', pages: '2 pages', items: '18 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
   ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <h1 className="text-xl font-bold text-white">Worksheets</h1>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Worksheets</h1>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>
-            <Plus size={16} /> Create worksheet
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#2563eb' }}>
-            <Upload size={16} /> Upload file
-          </button>
+          <Btn><Plus size={16} /> Create</Btn>
+          <Btn variant="primary"><Upload size={16} /> Upload</Btn>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         {stats.map((stat, idx) => (
-          <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-            <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-            <p className="text-2xl font-bold" style={{ color: stat.color || '#fff' }}>{stat.value}</p>
-          </div>
+          <Card key={idx} className="p-4">
+            <p className="text-xs mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{stat.label}</p>
+            <p className="text-2xl font-bold" style={{ color: stat.color || (dark ? '#f1f5f9' : '#1a2b4a') }}>{stat.value}</p>
+          </Card>
         ))}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {filters.map(f => (
-          <button key={f} onClick={() => setActiveFilter(f)} className="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: activeFilter === f ? '#333' : 'transparent', border: '1px solid #444', color: activeFilter === f ? '#fff' : '#9ca3af' }}>{f}</button>
+          <button key={f} onClick={() => setActiveFilter(f)}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={{
+              backgroundColor: activeFilter === f ? '#1e3a5f' : (dark ? '#1e293b' : '#ffffff'),
+              border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+              color: activeFilter === f ? '#ffffff' : (dark ? '#94a3b8' : '#64748b')
+            }}>
+            {f}
+          </button>
         ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {worksheetList.map((ws, idx) => (
-          <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
+          <Card key={idx} className="p-4">
             <div className="flex justify-between items-start mb-3">
-              <div className="w-12 h-16 rounded bg-[#1e1e1e] flex items-center justify-center">
-                <div className="w-8 h-1 rounded-full mb-1" style={{ backgroundColor: idx % 2 === 0 ? '#3b82f6' : '#10b981' }} />
+              <div className="w-10 h-14 rounded flex items-center justify-center"
+                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+                <FileText size={20} style={{ color: '#3b82f6' }} />
               </div>
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-[#1e1e1e]/10 text-gray-300">{ws.subject}</span>
+              <Badge color={ws.statusColor} bg={ws.statusBg}>{ws.status}</Badge>
             </div>
-            <h3 className="text-sm font-semibold text-white mb-1">{ws.title}</h3>
-            <p className="text-xs text-gray-500 mb-3">{ws.pages} · {ws.items} <span style={{ color: ws.statusColor }}>{ws.status}</span></p>
+            <h3 className="text-sm font-semibold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{ws.title}</h3>
+            <p className="text-xs mb-3" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{ws.subject} · {ws.pages} · {ws.items}</p>
             <div className="flex gap-2">
-              <button className="flex-1 h-9 rounded-lg text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Distribute</button>
-              <button className="flex-1 h-9 rounded-lg text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Preview</button>
+              <button className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
+                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+                Distribute
+              </button>
+              <button className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
+                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+                Preview
+              </button>
             </div>
-          </div>
+          </Card>
         ))}
-        <div className="rounded-xl p-4 flex flex-col items-center justify-center text-center" style={{ backgroundColor: '#1e1e1e', border: '1px dashed #3a3a3a' }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center mb-2" style={{ backgroundColor: '#252525' }}>
-            <Plus size={20} className="text-gray-400" />
+        <Card className="p-4 flex flex-col items-center justify-center text-center"
+          style={{ border: `1px dashed ${dark ? '#475569' : '#cbd5e1'}` }}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center mb-2"
+            style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+            <Plus size={20} style={{ color: '#94a3b8' }} />
           </div>
-          <p className="text-sm text-gray-400 mb-3">New worksheet</p>
-          <p className="text-xs text-gray-500 mb-3">Create from scratch or upload a file</p>
+          <p className="text-sm mb-1" style={{ color: dark ? '#94a3b8' : '#64748b' }}>New worksheet</p>
+          <p className="text-xs mb-3" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Create from scratch or upload</p>
           <div className="flex gap-2 w-full">
-            <button className="flex-1 h-9 rounded-lg text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}><Plus size={14} className="inline mr-1" />Create</button>
-            <button className="flex-1 h-9 rounded-lg text-xs font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Upload</button>
+            <button className="flex-1 h-8 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: '#1e3a5f', color: '#ffffff' }}>Create</button>
+            <button className="flex-1 h-8 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>Upload</button>
           </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl p-5 flex items-center justify-between" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#252525' }}>
-            <Upload size={20} className="text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm text-white font-medium">Drag & drop worksheet files here</p>
-            <p className="text-xs text-gray-500">Supports PDF, DOCX, PNG, JPG — auto-tagged by subject on upload</p>
-          </div>
-        </div>
-        <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#333', border: '1px solid #444' }}>Browse files</button>
+        </Card>
       </div>
     </div>
   );
@@ -427,17 +787,16 @@ const WorksheetsTab = () => {
 // ASSIGNMENTS TAB
 // ============================================
 const AssignmentsTab = () => {
+  const { dark } = useTheme();
   const [activeFilter, setActiveFilter] = useState('All');
   const filters = ['All', 'Open', 'Due today', 'Graded', 'Draft'];
-
   const assignmentList = [
-    { title: 'Essay: Romeo & Juliet', subject: 'English 9', dueDate: 'May 3, 2026', submitted: '30/38', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.15)', action: 'Review' },
-    { title: 'Math Problem Set 7', subject: 'Mathematics', dueDate: 'May 6, 2026', submitted: '17/38', status: 'Open', statusColor: '#fbbf24', statusBg: 'rgba(251,191,36,0.15)', action: 'View' },
-    { title: 'Science Lab Report', subject: 'Science 9', dueDate: 'Apr 30, 2026', submitted: '38/38', status: 'Graded', statusColor: '#4ade80', statusBg: 'rgba(74,222,128,0.15)', action: 'Results' },
-    { title: 'History Timeline Activity', subject: 'Araling Panlipunan', dueDate: 'May 9, 2026', submitted: '3/38', status: 'Open', statusColor: '#fbbf24', statusBg: 'rgba(251,191,36,0.15)', action: 'View' },
-    { title: 'Filipino Tula (Draft)', subject: 'Filipino 9', dueDate: 'May 14, 2026', submitted: '0/38', status: 'Draft', statusColor: '#9ca3af', statusBg: 'rgba(156,163,175,0.15)', action: 'Edit' },
+    { title: 'Essay: Romeo & Juliet', subject: 'English 9', dueDate: 'May 3, 2026', submitted: '30/38', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.12)', action: 'Review' },
+    { title: 'Math Problem Set 7', subject: 'Mathematics', dueDate: 'May 6, 2026', submitted: '17/38', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)', action: 'View' },
+    { title: 'Science Lab Report', subject: 'Science 9', dueDate: 'Apr 30, 2026', submitted: '38/38', status: 'Graded', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)', action: 'Results' },
+    { title: 'History Timeline Activity', subject: 'Araling Panlipunan', dueDate: 'May 9, 2026', submitted: '3/38', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)', action: 'View' },
+    { title: 'Filipino Tula (Draft)', subject: 'Filipino 9', dueDate: 'May 14, 2026', submitted: '0/38', status: 'Draft', statusColor: '#94a3b8', statusBg: 'rgba(148,163,184,0.12)', action: 'Edit' },
   ];
-
   const submissionList = [
     { name: 'Juan C.', file: 'essay_final.pdf', time: '2 min ago' },
     { name: 'Sofia R.', file: 'romeo_essay.docx', time: '15 min ago' },
@@ -448,65 +807,61 @@ const AssignmentsTab = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <h1 className="text-xl font-bold text-white">Assignments</h1>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>
-          <Plus size={16} /> New assignment
-        </button>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Assignments</h1>
+        <Btn><Plus size={16} /> New assignment</Btn>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {filters.map(f => (
-          <button key={f} onClick={() => setActiveFilter(f)} className="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: activeFilter === f ? '#333' : 'transparent', border: '1px solid #444', color: activeFilter === f ? '#fff' : '#9ca3af' }}>{f}</button>
+          <button key={f} onClick={() => setActiveFilter(f)}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium"
+            style={{
+              backgroundColor: activeFilter === f ? '#1e3a5f' : (dark ? '#1e293b' : '#ffffff'),
+              border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+              color: activeFilter === f ? '#ffffff' : (dark ? '#94a3b8' : '#64748b')
+            }}>
+            {f}
+          </button>
         ))}
       </div>
 
-      <div className="rounded-xl overflow-hidden mb-6" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <table className="w-full">
-          <thead>
-            <tr style={{ backgroundColor: '#252525' }}>
-              {['TITLE', 'SUBJECT', 'DUE DATE', 'SUBMITTED', 'STATUS', 'ACTIONS'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider text-gray-400 uppercase">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y" style={{ borderColor: '#2a2a2a' }}>
-            {assignmentList.map((a, i) => (
-              <tr key={i} className="hover:bg-[#1e1e1e]/5 transition-colors">
-                <td className="px-5 py-3.5 text-sm text-white font-medium">{a.title}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-400">{a.subject}</td>
-                <td className="px-5 py-3.5 text-sm" style={{ color: a.status === 'Due Today' ? '#ef4444' : '#9ca3af' }}>{a.dueDate}</td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-gray-700 overflow-hidden">
-                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${(parseInt(a.submitted) / 38) * 100}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-400">{a.submitted}</span>
+      <Card className="mb-6">
+        <Table headers={['Title', 'Subject', 'Due Date', 'Submitted', 'Status', 'Actions']}>
+          {assignmentList.map((a, i) => (
+            <TR key={i}>
+              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{a.title}</span></TD>
+              <TD>{a.subject}</TD>
+              <TD style={{ color: a.status === 'Due Today' ? '#ef4444' : undefined }}>{a.dueDate}</TD>
+              <TD>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1.5 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
+                    <div className="h-full rounded-full bg-blue-500"
+                      style={{ width: `${(parseInt(a.submitted) / 38) * 100}%` }} />
                   </div>
-                </td>
-                <td className="px-5 py-3.5">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: a.statusBg, color: a.statusColor }}>{a.status}</span>
-                </td>
-                <td className="px-5 py-3.5">
-                  <button className="text-xs text-blue-400 hover:text-blue-300">{a.action}</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <span className="text-xs">{a.submitted}</span>
+                </div>
+              </TD>
+              <TD><Badge color={a.statusColor} bg={a.statusBg}>{a.status}</Badge></TD>
+              <TD><button className="text-xs text-blue-500 hover:text-blue-700 font-medium">{a.action}</button></TD>
+            </TR>
+          ))}
+        </Table>
+      </Card>
 
-      <div className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <h2 className="text-sm font-semibold tracking-wider text-gray-400 mb-4">RECENT SUBMISSIONS — ESSAY: ROMEO & JULIET</h2>
+      <Card className="p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
+          style={{ color: dark ? '#64748b' : '#94a3b8' }}>Recent Submissions — Essay: Romeo & Juliet</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {submissionList.map((sub, idx) => (
-            <div key={idx} className="rounded-lg p-3" style={{ backgroundColor: '#252525' }}>
-              <p className="text-sm text-white font-medium mb-0.5">{sub.name}</p>
-              <p className="text-xs text-blue-400 mb-1">{sub.file}</p>
-              <p className="text-xs text-gray-500">{sub.time}</p>
+            <div key={idx} className="rounded-lg p-3"
+              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+              <p className="text-sm font-medium mb-0.5" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{sub.name}</p>
+              <p className="text-xs text-blue-500 mb-1">{sub.file}</p>
+              <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{sub.time}</p>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
@@ -515,54 +870,62 @@ const AssignmentsTab = () => {
 // GRADES TAB
 // ============================================
 const GradesTab = () => {
-  const [gradeList] = useState([
+  const { dark } = useTheme();
+  const gradeList = [
     { name: 'Juan dela Cruz', english: 92, math: 88, science: 91, filipino: 89, gwa: 90.0, remarks: 'Passed' },
     { name: 'Maria Santos', english: 85, math: 79, science: 83, filipino: 88, gwa: 83.8, remarks: 'Passed' },
     { name: 'Jose Reyes', english: 72, math: 68, science: 75, filipino: 74, gwa: 72.3, remarks: 'Needs Improvement' },
     { name: 'Ana Lim', english: 95, math: 94, science: 97, filipino: 93, gwa: 94.8, remarks: 'Passed' },
-  ]);
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Grades — Q3 Report</h1>
-        <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>Grades tab</button>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Grades — Q3 Report</h1>
+        <Btn><Download size={16} /> Export</Btn>
       </div>
-
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <table className="w-full">
-          <thead>
-            <tr style={{ backgroundColor: '#252525' }}>
-              {['STUDENT', 'ENGLISH', 'MATH', 'SCIENCE', 'FILIPINO', 'GWA', 'REMARKS'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider text-gray-400 uppercase">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y" style={{ borderColor: '#2a2a2a' }}>
-            {gradeList.map((g, i) => (
-              <tr key={i} className="hover:bg-[#1e1e1e]/5 transition-colors">
-                <td className="px-5 py-3.5 text-sm text-white font-medium">{g.name}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-300">{g.english}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-300">{g.math}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-300">{g.science}</td>
-                <td className="px-5 py-3.5 text-sm text-gray-300">{g.filipino}</td>
-                <td className="px-5 py-3.5 text-sm font-semibold" style={{ color: g.gwa >= 75 ? '#4ade80' : '#ef4444' }}>{g.gwa.toFixed(1)}</td>
-                <td className="px-5 py-3.5">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${g.remarks === 'Passed' ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>{g.remarks}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <Table headers={['Student', 'English', 'Math', 'Science', 'Filipino', 'GWA', 'Remarks']}>
+          {gradeList.map((g, i) => (
+            <TR key={i}>
+              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{g.name}</span></TD>
+              <TD>{g.english}</TD>
+              <TD>{g.math}</TD>
+              <TD>{g.science}</TD>
+              <TD>{g.filipino}</TD>
+              <TD>
+                <span className="font-bold" style={{ color: g.gwa >= 75 ? '#16a34a' : '#dc2626' }}>
+                  {g.gwa.toFixed(1)}
+                </span>
+              </TD>
+              <TD>
+                <Badge
+                  color={g.remarks === 'Passed' ? '#16a34a' : '#d97706'}
+                  bg={g.remarks === 'Passed' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)'}
+                >
+                  {g.remarks}
+                </Badge>
+              </TD>
+            </TR>
+          ))}
+        </Table>
+      </Card>
     </div>
   );
 };
+
+// missing import fix
+const Download = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
 
 // ============================================
 // ATTENDANCE TAB
 // ============================================
 const TeacherAttendanceTab = () => {
+  const { dark } = useTheme();
   const [attendanceData, setAttendanceData] = useState([
     { name: 'Juan dela Cruz', apr29: 'P', apr30: 'P', may2: 'P', may3: 'P', rate: '100%' },
     { name: 'Maria Santos', apr29: 'P', apr30: 'A', may2: 'P', may3: 'A', rate: '75%' },
@@ -574,143 +937,144 @@ const TeacherAttendanceTab = () => {
     const order = ['P', 'A', 'L'];
     setAttendanceData(prev => prev.map((row, i) => {
       if (i !== idx) return row;
-      const current = row[field];
-      const nextIdx = (order.indexOf(current) + 1) % order.length;
+      const nextIdx = (order.indexOf(row[field]) + 1) % order.length;
       return { ...row, [field]: order[nextIdx] };
     }));
   };
 
   const getBadgeStyle = (status) => {
-    if (status === 'P') return { bg: 'rgba(74,222,128,0.15)', color: '#4ade80' };
-    if (status === 'A') return { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' };
-    return { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24' };
+    if (status === 'P') return { bg: 'rgba(22,163,74,0.12)', color: '#16a34a' };
+    if (status === 'A') return { bg: 'rgba(220,38,38,0.12)', color: '#dc2626' };
+    return { bg: 'rgba(217,119,6,0.12)', color: '#d97706' };
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Attendance — May 3, 2026</h1>
-        <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>Save records</button>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Attendance — May 3, 2026</h1>
+        <Btn>Save records</Btn>
       </div>
-
-      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-        <table className="w-full">
-          <thead>
-            <tr style={{ backgroundColor: '#252525' }}>
-              {['STUDENT', 'APR 29', 'APR 30', 'MAY 2', 'MAY 3 (TODAY)', 'RATE'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider text-gray-400 uppercase">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y" style={{ borderColor: '#2a2a2a' }}>
-            {attendanceData.map((row, idx) => (
-              <tr key={idx} className="hover:bg-[#1e1e1e]/5 transition-colors">
-                <td className="px-5 py-3.5 text-sm text-white font-medium">{row.name}</td>
-                {['apr29', 'apr30', 'may2', 'may3'].map(field => {
-                  const style = getBadgeStyle(row[field]);
-                  return (
-                    <td key={field} className="px-5 py-3.5">
-                      <button onClick={() => toggleStatus(idx, field)} className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center transition-colors" style={{ backgroundColor: style.bg, color: style.color }}>{row[field]}</button>
-                    </td>
-                  );
-                })}
-                <td className="px-5 py-3.5 text-sm font-semibold text-white">{row.rate}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <Table headers={['Student', 'Apr 29', 'Apr 30', 'May 2', 'May 3 (Today)', 'Rate']}>
+          {attendanceData.map((row, idx) => (
+            <TR key={idx}>
+              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{row.name}</span></TD>
+              {['apr29', 'apr30', 'may2', 'may3'].map(field => {
+                const s = getBadgeStyle(row[field]);
+                return (
+                  <td key={field} className="px-5 py-3.5">
+                    <button onClick={() => toggleStatus(idx, field)}
+                      className="w-8 h-8 rounded-full text-xs font-bold transition-colors"
+                      style={{ backgroundColor: s.bg, color: s.color }}>
+                      {row[field]}
+                    </button>
+                  </td>
+                );
+              })}
+              <TD><span className="font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{row.rate}</span></TD>
+            </TR>
+          ))}
+        </Table>
+      </Card>
     </div>
   );
 };
 
 // ============================================
-// ANNOUNCEMENTS TAB (CRUD)
+// ANNOUNCEMENTS TAB
 // ============================================
 const TeacherAnnouncementsTab = () => {
+  const { dark } = useTheme();
   const [announcementList, setAnnouncementList] = useState([
-    { id: 1, title: 'No classes on May 12 — Independence Day', content: 'School is suspended on May 12, 2026 in observance of Philippine Independence Day. All pending submissions have been extended by one day.', date: 'May 3', tag: 'Holiday', tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.15)' },
-    { id: 2, title: 'Essay deadline reminder — Romeo & Juliet', content: 'Please submit your essays via the portal by 11:59 PM today. Late submissions will receive point deductions.', date: 'May 2', tag: 'Urgent', tagColor: '#ef4444', tagBg: 'rgba(239,68,68,0.15)' },
-    { id: 3, title: 'Quarter 4 parent-teacher conference schedule', content: "PTC is scheduled for May 17, 2026. Please inform your parents to confirm attendance via the school's SMS system.", date: 'Apr 28', tag: 'Event', tagColor: '#4ade80', tagBg: 'rgba(74,222,128,0.15)' },
+    { id: 1, title: 'No classes on May 12 — Independence Day', content: 'School is suspended on May 12, 2026 in observance of Philippine Independence Day. All pending submissions have been extended by one day.', date: 'May 3', tag: 'Holiday', tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.12)' },
+    { id: 2, title: 'Essay deadline reminder — Romeo & Juliet', content: 'Please submit your essays via the portal by 11:59 PM today. Late submissions will receive point deductions.', date: 'May 2', tag: 'Urgent', tagColor: '#dc2626', tagBg: 'rgba(220,38,38,0.12)' },
+    { id: 3, title: 'Quarter 4 parent-teacher conference schedule', content: "PTC is scheduled for May 17, 2026. Please inform your parents to confirm attendance via the school's SMS system.", date: 'Apr 28', tag: 'Event', tagColor: '#16a34a', tagBg: 'rgba(22,163,74,0.12)' },
   ]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', tag: 'Event' });
 
+  const tagColors = {
+    Holiday: { tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.12)' },
+    Urgent: { tagColor: '#dc2626', tagBg: 'rgba(220,38,38,0.12)' },
+    Event: { tagColor: '#16a34a', tagBg: 'rgba(22,163,74,0.12)' },
+  };
+
   const handleAdd = (e) => {
     e.preventDefault();
-    const colors = {
-      'Holiday': { tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.15)' },
-      'Urgent': { tagColor: '#ef4444', tagBg: 'rgba(239,68,68,0.15)' },
-      'Event': { tagColor: '#4ade80', tagBg: 'rgba(74,222,128,0.15)' },
-    };
-    const newAnnouncement = {
+    setAnnouncementList([{
       id: Date.now(),
       ...formData,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      ...colors[formData.tag]
-    };
-    setAnnouncementList([newAnnouncement, ...announcementList]);
+      ...tagColors[formData.tag]
+    }, ...announcementList]);
     setFormData({ title: '', content: '', tag: 'Event' });
     setShowAddModal(false);
   };
 
-  const handleDelete = (id) => setAnnouncementList(announcementList.filter(a => a.id !== id));
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Announcements</h1>
-        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{ backgroundColor: '#1e3a5f', border: '1px solid #2a4a6f' }}>
-          <Plus size={16} /> Post announcement
-        </button>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Announcements</h1>
+        <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> Post announcement</Btn>
       </div>
 
       <div className="space-y-4">
         {announcementList.map(a => (
-          <div key={a.id} className="rounded-xl p-5" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
+          <Card key={a.id} className="p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: a.tagBg, color: a.tagColor }}>{a.tag}</span>
-                  <span className="text-xs text-gray-500">{a.date}</span>
+                  <Badge color={a.tagColor} bg={a.tagBg}>{a.tag}</Badge>
+                  <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{a.date}</span>
                 </div>
-                <h3 className="text-base font-semibold text-white mb-1">{a.title}</h3>
-                <p className="text-sm text-gray-400">{a.content}</p>
+                <h3 className="text-base font-semibold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{a.title}</h3>
+                <p className="text-sm" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{a.content}</p>
               </div>
-              <button onClick={() => handleDelete(a.id)} className="text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={18} /></button>
+              <button onClick={() => setAnnouncementList(announcementList.filter(x => x.id !== a.id))}
+                className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                <Trash2 size={18} />
+              </button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="rounded-xl w-full max-w-lg" style={{ backgroundColor: '#1e1e1e', border: '1px solid #2a2a2a' }}>
-            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: '#2a2a2a' }}>
-              <h2 className="text-lg font-bold text-white">Post Announcement</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white"><X size={20} /></button>
+        <Modal title="Post Announcement" onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleAdd} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Title</label>
+              <Input type="text" required value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
             </div>
-            <form onSubmit={handleAdd} className="p-5 flex flex-col gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">TITLE</label>
-                <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full h-10 px-3 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" style={{ backgroundColor: '#252525', border: '1px solid #333' }} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">CONTENT</label>
-                <textarea required rows={4} value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 resize-none" style={{ backgroundColor: '#252525', border: '1px solid #333' }} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1.5">TAG</label>
-                <select value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full h-10 px-3 rounded-lg text-sm text-white outline-none focus:ring-2 focus:ring-blue-500" style={{ backgroundColor: '#252525', border: '1px solid #333' }}>
-                  <option value="Holiday">Holiday</option>
-                  <option value="Urgent">Urgent</option>
-                  <option value="Event">Event</option>
-                </select>
-              </div>
-              <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90 mt-1" style={{ backgroundColor: '#1e3a5f' }}>Post Announcement</button>
-            </form>
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Content</label>
+              <textarea required rows={4} value={formData.content}
+                onChange={e => setFormData({ ...formData, content: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                style={{
+                  backgroundColor: dark ? '#0f172a' : '#f8fafc',
+                  border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
+                  color: dark ? '#f1f5f9' : '#1a2b4a'
+                }} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Tag</label>
+              <select value={formData.tag} onChange={e => setFormData({ ...formData, tag: e.target.value })}
+                className="w-full h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  backgroundColor: dark ? '#0f172a' : '#f8fafc',
+                  border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
+                  color: dark ? '#f1f5f9' : '#1a2b4a'
+                }}>
+                <option>Holiday</option>
+                <option>Urgent</option>
+                <option>Event</option>
+              </select>
+            </div>
+            <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90"
+              style={{ backgroundColor: '#1e3a5f' }}>Post Announcement</button>
+          </form>
+        </Modal>
       )}
     </div>
   );

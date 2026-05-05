@@ -14,6 +14,9 @@ import {
   onAuthStateChanged,
   sendEmailVerification,
   updateEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
@@ -72,10 +75,15 @@ export const AuthProvider = ({ children }) => {
   // ============================================
   // LOGIN WITH EMAIL AND PASSWORD
   // ============================================
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
       setError(null);
       setLoading(true);
+
+      // Set persistence based on rememberMe:
+      // LOCAL  → survives browser close (remember me ON)
+      // SESSION → cleared when tab/browser closes (remember me OFF)
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       
       const result = await signInWithEmailAndPassword(auth, email, password);
       
