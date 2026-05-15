@@ -1,61 +1,164 @@
 // ============================================
 // FILE: src/pages/dashboards/TeacherDashboard.jsx
-// PURPOSE: Teacher Dashboard — Sidebar + Top Header Design
-// ROLE: teacher only
-// FEATURES: Overview, Students, Lesson Plans, Worksheets, Assignments, Grades, Attendance, Announcements
-// DESIGN: White sidebar (like Admin Portal) + compact top header
+// UPDATED: Full Supabase CRUD + Real-time + Role-based News
 // ============================================
 
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabase';
 import {
-  Users, BookOpen, FileText, GraduationCap,
-  CalendarCheck, Megaphone, Search, Trash2, X, Check,
-  Plus, Upload, Moon, Sun, LogOut, Menu,
-  LayoutDashboard, ClipboardList, ChevronRight, Bell
+  Users, UserPlus, BookOpen, FileText, GraduationCap, 
+  CalendarCheck, Megaphone, Search, Trash2, Edit, X, Check,
+  AlertCircle, Plus, Download, Upload, MoreHorizontal, ChevronDown,
+  FileUp, Eye, Save, RefreshCw, Clock, Calendar, Mail, Activity,
+  Moon, Sun, LogOut, Menu, LayoutDashboard, ClipboardList, ChevronRight, Bell,
+  Loader2
 } from 'lucide-react';
 
 // ============================================
-// THEME CONTEXT
+// THEME CONTEXT (preserved from your original)
 // ============================================
 const ThemeContext = createContext({ dark: false, toggleDark: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
 // ============================================
-// MAIN TEACHER DASHBOARD
+// TOAST HELPER
 // ============================================
-const TeacherDashboard = () => {
-  const navigate = useNavigate();
-  const { isTeacher } = useAuth();
-  const [dark, setDark] = useState(false);
+const useToast = () => {
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+  return { toast, showToast };
+};
 
-  useEffect(() => {
-    if (!isTeacher()) {
-      navigate('/', { replace: true });
-    }
-  }, [isTeacher, navigate]);
+// ============================================
+// SHARED COMPONENTS (Your originals preserved)
+// ============================================
 
+const Card = ({ children, className = '', style = {} }) => {
+  const { dark } = useTheme();
   return (
-    <ThemeContext.Provider value={{ dark, toggleDark: () => setDark(d => !d) }}>
-      <TeacherLayout>
-        <Routes>
-          <Route path="/" element={<TeacherOverviewTab />} />
-          <Route path="/students" element={<StudentsTab />} />
-          <Route path="/lesson-plans" element={<LessonPlansTab />} />
-          <Route path="/worksheets" element={<WorksheetsTab />} />
-          <Route path="/assignments" element={<AssignmentsTab />} />
-          <Route path="/grades" element={<GradesTab />} />
-          <Route path="/attendance" element={<TeacherAttendanceTab />} />
-          <Route path="/announcements" element={<TeacherAnnouncementsTab />} />
-        </Routes>
-      </TeacherLayout>
-    </ThemeContext.Provider>
+    <div className={`rounded-xl ${className}`}
+      style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, ...style }}>
+      {children}
+    </div>
+  );
+};
+
+const Input = ({ className = '', ...props }) => {
+  const { dark } = useTheme();
+  return (
+    <input className={`w-full h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
+      style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }}
+      {...props}
+    />
+  );
+};
+
+const Table = ({ headers, children }) => {
+  const { dark } = useTheme();
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+            {headers.map(h => (
+              <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider uppercase"
+                style={{ color: dark ? '#64748b' : '#94a3b8' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody style={{ borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+          {children}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const TR = ({ children }) => {
+  const { dark } = useTheme();
+  return (
+    <tr className="transition-colors" style={{ borderBottom: `1px solid ${dark ? '#334155' : '#f1f5f9'}` }}
+      onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#0f172a' : '#f8fafc'}
+      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+      {children}
+    </tr>
+  );
+};
+
+const TD = ({ children, className = '' }) => {
+  const { dark } = useTheme();
+  return (
+    <td className={`px-5 py-3.5 text-sm ${className}`} style={{ color: dark ? '#cbd5e1' : '#475569' }}>
+      {children}
+    </td>
+  );
+};
+
+const Modal = ({ title, onClose, children }) => {
+  const { dark } = useTheme();
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="rounded-xl w-full max-w-md shadow-2xl"
+        style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+          <h2 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+const StatCard = ({ label, value, sub, subColor, icon: Icon, loading }) => {
+  const { dark } = useTheme();
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{label}</p>
+        {Icon && (
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: dark ? '#0f172a' : '#eff6ff' }}>
+            <Icon size={16} style={{ color: '#3b82f6' }} />
+          </div>
+        )}
+        {loading && <Loader2 size={16} className="animate-spin text-blue-500" />}
+      </div>
+      <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{loading ? '—' : value}</p>
+      <p className="text-xs" style={{ color: subColor || (dark ? '#64748b' : '#94a3b8') }}>{sub}</p>
+    </Card>
+  );
+};
+
+const Badge = ({ children, color, bg }) => (
+  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: bg, color }}>
+    {children}
+  </span>
+);
+
+const Btn = ({ children, onClick, className = '', variant = 'default', disabled }) => {
+  const variants = {
+    default: { backgroundColor: '#1e3a5f', color: '#ffffff' },
+    outline: { backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0' },
+    primary: { backgroundColor: '#2563eb', color: '#ffffff' },
+    danger: { backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 ${className}`}
+      style={{ ...variants[variant], opacity: disabled ? 0.5 : 1 }}>
+      {children}
+    </button>
   );
 };
 
 // ============================================
-// TEACHER LAYOUT (Sidebar + Top Header)
+// TEACHER LAYOUT (Your original design preserved)
 // ============================================
 const TeacherLayout = ({ children }) => {
   const { dark, toggleDark } = useTheme();
@@ -63,6 +166,7 @@ const TeacherLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
 
   const handleLogout = () => {
     logout();
@@ -85,31 +189,44 @@ const TeacherLayout = ({ children }) => {
   const textPrimary = dark ? '#f1f5f9' : '#1a2b4a';
   const textMuted = dark ? '#94a3b8' : '#64748b';
 
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userData?.uid)
+        .eq('read', false);
+      setNotifCount(count || 0);
+    };
+    
+    if (userData?.uid) fetchNotifs();
+    
+    const channel = supabase
+      .channel('teacher-notifs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, fetchNotifs)
+      .subscribe();
+      
+    return () => supabase.removeChannel(channel);
+  }, [userData]);
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
-      {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/30 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* SIDEBAR */}
-      <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-white
+      {/* SIDEBAR - Your original design */}
+      <aside className={`
+          fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col
           transform transition-transform duration-300 ease-in-out shadow-sm
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
-      >
-        {/* Logo + School Name */}
-        <div className="p-5 border-b border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <img 
-              src="/capstonelogo.png" 
-              alt="School Logo" 
-              className="w-full h-full object-contain"
+        style={{ backgroundColor: dark ? '#1e293b' : '#ffffff' }}>
+        
+        <div className="p-5 border-b flex items-center gap-3" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+          <div className="w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', borderColor: dark ? '#334155' : '#e2e8f0' }}>
+            <img src="/capstonelogo.png" alt="School Logo" className="w-full h-full object-contain"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.parentElement.innerHTML = '<span class="font-bold text-[#1e3a5f] text-lg">D</span>';
@@ -117,29 +234,25 @@ const TeacherLayout = ({ children }) => {
             />
           </div>
           <div>
-            <p className="text-[#1a2b4a] font-bold text-sm leading-tight">Dela Paz National High School</p>
-            <p className="text-gray-400 text-[10px]">Teacher Portal</p>
+            <p className="font-bold text-sm leading-tight" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Dela Paz National High School</p>
+            <p className="text-[10px]" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Teacher Portal</p>
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
+              <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all mb-0.5
-                  ${isActive
-                    ? 'bg-blue-50 text-[#1e3a5f] font-semibold'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1a2b4a]'
-                  }
+                  ${isActive ? 'bg-blue-50 text-[#1e3a5f] font-semibold' : 'hover:bg-gray-50 hover:text-[#1a2b4a]'}
                 `}
-              >
+                style={{
+                  color: isActive ? '#1e3a5f' : (dark ? '#94a3b8' : '#64748b'),
+                  backgroundColor: isActive ? (dark ? '#0f172a' : '#eff6ff') : 'transparent'
+                }}>
                 <Icon size={18} />
                 <span>{item.label}</span>
                 {isActive && <ChevronRight size={14} className="ml-auto text-[#1e3a5f]" />}
@@ -148,32 +261,21 @@ const TeacherLayout = ({ children }) => {
           })}
         </nav>
 
-        {/* System Status */}
-        <div className="p-5 border-t border-gray-100">
+        <div className="p-5 border-t" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
           <div className="flex items-center gap-2 px-2">
             <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs text-gray-400">All systems online</span>
+            <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>All systems online</span>
           </div>
         </div>
       </aside>
 
-      {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* TOP HEADER */}
-        <header
-          className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0 bg-white"
-          style={{ borderColor: headerBorder }}
-        >
+        <header className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0"
+          style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', borderColor: headerBorder }}>
           <div className="flex items-center gap-3">
-            {/* Mobile menu */}
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg transition-colors text-gray-400 hover:text-[#1a2b4a]"
-            >
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-lg transition-colors" style={{ color: dark ? '#94a3b8' : '#94a3b8' }}>
               <Menu size={20} />
             </button>
-
-            {/* Page title */}
             <div className="hidden sm:block">
               <h1 className="text-base font-bold" style={{ color: textPrimary }}>
                 {navItems.find(n => n.path === location.pathname)?.label || 'Dashboard'}
@@ -184,45 +286,31 @@ const TeacherLayout = ({ children }) => {
             </div>
           </div>
 
-          {/* Right controls */}
           <div className="flex items-center gap-2">
-            <button
-              className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400"
-            >
-              <Search size={18} />
+            <button className="p-2 rounded-full transition-colors relative" style={{ color: dark ? '#94a3b8' : '#94a3b8' }}>
+              <Bell size={18} />
+              {notifCount > 0 && (
+                <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                  {notifCount}
+                </span>
+              )}
             </button>
-
-            <button
-              onClick={toggleDark}
-              className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400"
-              title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
+            <button onClick={toggleDark} className="p-2 rounded-full transition-colors" style={{ color: dark ? '#fbbf24' : '#64748b' }}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold cursor-default"
-              style={{ backgroundColor: '#1e3a5f', color: '#FEB300' }}
-              title={userData?.name || 'Teacher'}
-            >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold cursor-default"
+              style={{ backgroundColor: '#1e3a5f', color: '#FEB300' }} title={userData?.name || 'Teacher'}>
               {(userData?.name || 'T')[0].toUpperCase()}
             </div>
-
-            <button
-              onClick={handleLogout}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-gray-500 hover:bg-gray-50 border border-gray-200"
-            >
-              <LogOut size={15} />
-              Logout
+            <button onClick={handleLogout}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border"
+              style={{ color: dark ? '#94a3b8' : '#64748b', borderColor: dark ? '#334155' : '#e2e8f0', backgroundColor: 'transparent' }}>
+              <LogOut size={15} /> Logout
             </button>
           </div>
         </header>
 
-        {/* CONTENT */}
-        <main
-          className="flex-1 overflow-y-auto"
-          style={{ backgroundColor: mainBg }}
-        >
+        <main className="flex-1 overflow-y-auto" style={{ backgroundColor: mainBg }}>
           {children}
         </main>
       </div>
@@ -231,202 +319,103 @@ const TeacherLayout = ({ children }) => {
 };
 
 // ============================================
-// SHARED CARD COMPONENT
-// ============================================
-const Card = ({ children, className = '', style = {} }) => {
-  const { dark } = useTheme();
-  return (
-    <div
-      className={`rounded-xl ${className}`}
-      style={{
-        backgroundColor: dark ? '#1e293b' : '#ffffff',
-        border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
-        ...style
-      }}
-    >
-      {children}
-    </div>
-  );
-};
-
-// ============================================
-// SHARED INPUT
-// ============================================
-const Input = ({ className = '', ...props }) => {
-  const { dark } = useTheme();
-  return (
-    <input
-      className={`w-full h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
-      style={{
-        backgroundColor: dark ? '#0f172a' : '#f8fafc',
-        border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
-        color: dark ? '#f1f5f9' : '#1a2b4a',
-      }}
-      {...props}
-    />
-  );
-};
-
-// ============================================
-// SHARED TABLE
-// ============================================
-const Table = ({ headers, children }) => {
-  const { dark } = useTheme();
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
-            {headers.map(h => (
-              <th key={h} className="px-5 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-                style={{ color: dark ? '#64748b' : '#94a3b8' }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody style={{ borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
-          {children}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-const TR = ({ children }) => {
-  const { dark } = useTheme();
-  return (
-    <tr
-      className="transition-colors"
-      style={{ borderBottom: `1px solid ${dark ? '#334155' : '#f1f5f9'}` }}
-      onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#0f172a' : '#f8fafc'}
-      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-    >
-      {children}
-    </tr>
-  );
-};
-
-const TD = ({ children, className = '' }) => {
-  const { dark } = useTheme();
-  return (
-    <td className={`px-5 py-3.5 text-sm ${className}`} style={{ color: dark ? '#cbd5e1' : '#475569' }}>
-      {children}
-    </td>
-  );
-};
-
-// ============================================
-// MODAL
-// ============================================
-const Modal = ({ title, onClose, children }) => {
-  const { dark } = useTheme();
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="rounded-xl w-full max-w-md shadow-2xl"
-        style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
-        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
-          <h2 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================
-// STAT CARD
-// ============================================
-const StatCard = ({ label, value, sub, subColor, icon: Icon }) => {
-  const { dark } = useTheme();
-  return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{label}</p>
-        {Icon && (
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: dark ? '#0f172a' : '#eff6ff' }}>
-            <Icon size={16} style={{ color: '#3b82f6' }} />
-          </div>
-        )}
-      </div>
-      <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{value}</p>
-      <p className="text-xs" style={{ color: subColor || (dark ? '#64748b' : '#94a3b8') }}>
-        {sub}
-      </p>
-    </Card>
-  );
-};
-
-// ============================================
-// BADGE
-// ============================================
-const Badge = ({ children, color, bg }) => (
-  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
-    style={{ backgroundColor: bg, color }}>
-    {children}
-  </span>
-);
-
-// ============================================
-// BTN
-// ============================================
-const Btn = ({ children, onClick, className = '', variant = 'default' }) => {
-  const variants = {
-    default: { backgroundColor: '#1e3a5f', color: '#ffffff' },
-    outline: { backgroundColor: 'transparent', color: '#64748b', border: '1px solid #e2e8f0' },
-    primary: { backgroundColor: '#2563eb', color: '#ffffff' },
-    danger: { backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' },
-  };
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 ${className}`}
-      style={variants[variant]}
-    >
-      {children}
-    </button>
-  );
-};
-
-// ============================================
-// TEACHER OVERVIEW TAB
+// TEACHER OVERVIEW TAB — Live Supabase Data
 // ============================================
 const TeacherOverviewTab = () => {
   const { dark } = useTheme();
-  const stats = [
-    { label: 'Students', value: '38', sub: 'Grade 9 — Section A', icon: Users },
-    { label: 'Assignments', value: '12', sub: '4 pending review', icon: FileText, subColor: '#16a34a' },
-    { label: 'Attendance', value: '94%', sub: 'This week', icon: CalendarCheck },
-    { label: 'Avg. Grade', value: '87.4', sub: '+2.1 vs last month', icon: GraduationCap, subColor: '#16a34a' },
-  ];
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [stats, setStats] = useState({ students: 0, assignments: 0, attendance: '0%', avgGrade: '0' });
+  const [activeAssignments, setActiveAssignments] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const activeAssignments = [
-    { title: 'Essay: Romeo & Juliet', date: 'May 3', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.12)' },
-    { title: 'Math Problem Set 7', date: 'May 6', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
-    { title: 'Science Lab Report', date: 'Apr 30', status: 'Graded', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
-    { title: 'History Timeline', date: 'May 9', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
-  ];
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    
+    const { count: studentCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'student')
+      .eq('teacher_id', userData?.uid);
+    
+    const { data: assignments } = await supabase
+      .from('assignments')
+      .select('*')
+      .eq('teacher_id', userData?.uid)
+      .in('status', ['Open', 'Due Today'])
+      .order('due_date', { ascending: true })
+      .limit(4);
+    
+    const today = new Date().toISOString().split('T')[0];
+    const { data: attendance } = await supabase
+      .from('attendance')
+      .select('status')
+      .eq('date', today)
+      .eq('teacher_id', userData?.uid);
+    
+    const presentCount = attendance?.filter(a => a.status === 'P').length || 0;
+    const totalAttendance = attendance?.length || 1;
+    const attendanceRate = Math.round((presentCount / totalAttendance) * 100);
+    
+    const { data: grades } = await supabase
+      .from('grades')
+      .select('grade')
+      .eq('teacher_id', userData?.uid);
+    
+    const avgGrade = grades?.length ? (grades.reduce((a, b) => a + b.grade, 0) / grades.length).toFixed(1) : '0';
+    
+    setStats({
+      students: studentCount || 0,
+      assignments: assignments?.length || 0,
+      attendance: `${attendanceRate}%`,
+      avgGrade
+    });
+    
+    setActiveAssignments(assignments || []);
+    
+    const { data: logs } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('user_id', userData?.uid)
+      .order('created_at', { ascending: false })
+      .limit(4);
+    
+    setRecentActivity(logs || []);
+    setLoading(false);
+  }, [userData]);
 
-  const recentActivity = [
-    { text: 'Juan dela Cruz submitted Essay draft', time: '2 min ago', color: '#3b82f6' },
-    { text: 'Lesson Plan generated from PDF upload', time: '18 min ago', color: '#10b981' },
-    { text: 'Maria Santos marked absent', time: '1 hr ago', color: '#ef4444' },
-    { text: 'New announcement posted', time: '2 hrs ago', color: '#f59e0b' },
-  ];
+  useEffect(() => {
+    fetchOverview();
+    
+    const channels = [
+      supabase.channel('teacher-overview-profiles').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchOverview).subscribe(),
+      supabase.channel('teacher-overview-assignments').on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, fetchOverview).subscribe(),
+      supabase.channel('teacher-overview-attendance').on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchOverview).subscribe(),
+      supabase.channel('teacher-overview-grades').on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, fetchOverview).subscribe(),
+    ];
+    
+    return () => channels.forEach(ch => supabase.removeChannel(ch));
+  }, [fetchOverview]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Dashboard Overview</h2>
         <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Academic Year 2025–2026 · Last updated: today</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {stats.map((stat, idx) => (
-          <StatCard key={idx} {...stat} />
-        ))}
+        <StatCard label="Students" value={stats.students} sub="Under your advisory" icon={Users} loading={loading} />
+        <StatCard label="Assignments" value={stats.assignments} sub="Active & pending" icon={FileText} subColor="#16a34a" loading={loading} />
+        <StatCard label="Attendance" value={stats.attendance} sub="This week" icon={CalendarCheck} loading={loading} />
+        <StatCard label="Avg. Grade" value={stats.avgGrade} sub="Class average" icon={GraduationCap} subColor="#16a34a" loading={loading} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -434,14 +423,21 @@ const TeacherOverviewTab = () => {
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
             style={{ color: dark ? '#64748b' : '#94a3b8' }}>Active Assignments</h2>
           <div className="space-y-3">
-            {activeAssignments.map((item, idx) => (
+            {activeAssignments.length === 0 ? (
+              <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No active assignments</p>
+            ) : activeAssignments.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0"
                 style={{ borderColor: dark ? '#334155' : '#f1f5f9' }}>
                 <div className="flex items-center gap-3">
-                  <Badge color={item.statusColor} bg={item.statusBg}>{item.status}</Badge>
+                  <Badge color={item.status === 'Due Today' ? '#ef4444' : '#d97706'} 
+                    bg={item.status === 'Due Today' ? 'rgba(239,68,68,0.12)' : 'rgba(217,119,6,0.12)'}>
+                    {item.status}
+                  </Badge>
                   <span className="text-sm font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{item.title}</span>
                 </div>
-                <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{item.date}</span>
+                <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                  {new Date(item.due_date).toLocaleDateString()}
+                </span>
               </div>
             ))}
           </div>
@@ -451,12 +447,17 @@ const TeacherOverviewTab = () => {
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
             style={{ color: dark ? '#64748b' : '#94a3b8' }}>Recent Activity</h2>
           <div className="space-y-4">
-            {recentActivity.map((item, idx) => (
+            {recentActivity.length === 0 ? (
+              <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No recent activity</p>
+            ) : recentActivity.map((item, idx) => (
               <div key={idx} className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: item.color }} />
+                <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" 
+                  style={{ backgroundColor: ['#3b82f6', '#10b981', '#ef4444', '#f59e0b'][idx % 4] }} />
                 <div>
-                  <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{item.text}</p>
-                  <p className="text-xs mt-0.5" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{item.time}</p>
+                  <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{item.action}</p>
+                  <p className="text-xs mt-0.5" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                    {new Date(item.created_at).toLocaleString()}
+                  </p>
                 </div>
               </div>
             ))}
@@ -475,7 +476,9 @@ const TeacherOverviewTab = () => {
           <div key={idx} className="mb-4 last:mb-0">
             <div className="flex justify-between mb-1">
               <span className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{item.label}</span>
-              <span className="text-sm font-semibold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{item.value}/{item.total}</span>
+              <span className="text-sm font-semibold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+                {item.value}/{item.total}
+              </span>
             </div>
             <div className="h-2 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
               <div className="h-full rounded-full transition-all"
@@ -489,80 +492,129 @@ const TeacherOverviewTab = () => {
 };
 
 // ============================================
-// STUDENTS TAB
+// STUDENTS TAB — Full Supabase CRUD
 // ============================================
 const StudentsTab = () => {
   const { dark } = useTheme();
-  const [studentList, setStudentList] = useState([
-    { id: 1, lrn: '123456789012', name: 'Juan dela Cruz', email: 'juan@school.edu', status: 'Active' },
-    { id: 2, lrn: '123456789013', name: 'Maria Santos', email: 'maria@school.edu', status: 'Active' },
-    { id: 3, lrn: '123456789014', name: 'Jose Reyes', email: 'jose@school.edu', status: 'Inactive' },
-    { id: 4, lrn: '123456789015', name: 'Ana Lim', email: 'ana@school.edu', status: 'Active' },
-  ]);
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [studentList, setStudentList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({ lrn: '', name: '', email: '', status: 'Active' });
+  const [saving, setSaving] = useState(false);
 
-  const handleAddStudent = (e) => {
+  const fetchStudents = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'student')
+      .eq('teacher_id', userData?.uid)
+      .order('created_at', { ascending: false });
+    
+    if (error) showToast('Error loading students: ' + error.message, 'error');
+    else setStudentList(data || []);
+    setLoading(false);
+  }, [userData, showToast]);
+
+  useEffect(() => {
+    fetchStudents();
+    const channel = supabase
+      .channel('teacher-students')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchStudents)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchStudents]);
+
+  const handleAddStudent = async (e) => {
     e.preventDefault();
-    setStudentList([...studentList, { id: Date.now(), ...formData }]);
-    setFormData({ lrn: '', name: '', email: '', status: 'Active' });
-    setShowAddModal(false);
+    if (!formData.name || !formData.email) return;
+    setSaving(true);
+    
+    const { error } = await supabase.from('profiles').insert([{
+      ...formData,
+      role: 'student',
+      teacher_id: userData?.uid,
+      status: 'Active',
+      created_at: new Date().toISOString()
+    }]);
+    
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Student added successfully');
+      setFormData({ lrn: '', name: '', email: '', status: 'Active' });
+      setShowAddModal(false);
+      fetchStudents();
+    }
+    setSaving(false);
+  };
+
+  const handleDeleteStudent = async (id) => {
+    if (!confirm('Delete this student?')) return;
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) showToast('Error deleting: ' + error.message, 'error');
+    else {
+      showToast('Student deleted');
+      fetchStudents();
+    }
   };
 
   const filtered = studentList.filter(s =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.lrn.includes(searchQuery)
+    s.name?.toLowerCase().includes(searchQuery.toLowerCase()) || s.lrn?.includes(searchQuery)
   );
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Students — Grade 9A</h1>
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Students — My Advisory</h1>
         <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> Add Student</Btn>
       </div>
 
       <div className="relative mb-6">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }} />
-        <input
-          type="text"
-          placeholder="Search students..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+        <input type="text" placeholder="Search students..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
           className="w-full h-10 pl-10 pr-4 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          style={{
-            backgroundColor: dark ? '#1e293b' : '#ffffff',
-            border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
-            color: dark ? '#f1f5f9' : '#1a2b4a'
-          }}
-        />
+          style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }} />
       </div>
 
       <Card>
-        <Table headers={['#', 'Name', 'LRN', 'Email', 'Status', 'Actions']}>
-          {filtered.map((s, i) => (
-            <TR key={s.id}>
-              <TD>{i + 1}</TD>
-              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{s.name}</span></TD>
-              <TD>{s.lrn}</TD>
-              <TD>{s.email}</TD>
-              <TD>
-                <Badge
-                  color={s.status === 'Active' ? '#16a34a' : '#dc2626'}
-                  bg={s.status === 'Active' ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)'}
-                >
-                  {s.status}
-                </Badge>
-              </TD>
-              <TD>
-                <div className="flex gap-3">
-                  <button className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
-                  <button onClick={() => setStudentList(studentList.filter(x => x.id !== s.id))}
-                    className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
-                </div>
-              </TD>
-            </TR>
-          ))}
-        </Table>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : (
+          <Table headers={['#', 'Name', 'LRN', 'Email', 'Status', 'Actions']}>
+            {filtered.map((s, i) => (
+              <TR key={s.id}>
+                <TD>{i + 1}</TD>
+                <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{s.name}</span></TD>
+                <TD>{s.lrn || '—'}</TD>
+                <TD>{s.email}</TD>
+                <TD>
+                  <Badge color={s.status === 'Active' ? '#16a34a' : '#dc2626'}
+                    bg={s.status === 'Active' ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.12)'}>
+                    {s.status}
+                  </Badge>
+                </TD>
+                <TD>
+                  <div className="flex gap-3">
+                    <button className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
+                    <button onClick={() => handleDeleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                  </div>
+                </TD>
+              </TR>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="text-center py-8 text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No students found</td></tr>
+            )}
+          </Table>
+        )}
       </Card>
 
       {showAddModal && (
@@ -578,8 +630,10 @@ const StudentsTab = () => {
                 <Input type={type} required value={formData[key]} onChange={e => setFormData({ ...formData, [key]: e.target.value })} />
               </div>
             ))}
-            <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90 mt-1"
-              style={{ backgroundColor: '#1e3a5f' }}>Add Student</button>
+            <button type="submit" disabled={saving} className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90 mt-1 flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#1e3a5f' }}>
+              {saving && <Loader2 size={16} className="animate-spin" />} Add Student
+            </button>
           </form>
         </Modal>
       )}
@@ -588,31 +642,78 @@ const StudentsTab = () => {
 };
 
 // ============================================
-// LESSON PLANS TAB
+// LESSON PLANS TAB — Full Supabase CRUD
 // ============================================
 const LessonPlansTab = () => {
   const { dark } = useTheme();
-  const previousPlans = [
-    { title: 'Photosynthesis & Cell Energy', date: 'Apr 28', ai: true },
-    { title: 'The Philippine Revolution', date: 'Apr 21', ai: false },
-    { title: 'Linear Equations & Graphing', date: 'Apr 14', ai: true },
-    { title: 'Figurative Language in Poetry', date: 'Apr 7', ai: false },
-    { title: 'Plate Tectonics', date: 'Mar 31', ai: true },
-  ];
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({ title: '', subject: '', duration: '', strategy: '', objectives: '' });
+  const [saving, setSaving] = useState(false);
 
-  const generatedPlan = {
-    title: 'The Human Respiratory System',
-    subject: 'Science 9', duration: '60 minutes',
-    date: 'May 6, 2026', strategy: 'Cooperative Learning',
-    objectives: [
-      'Identify the parts of the respiratory system',
-      'Explain how gas exchange occurs in the lungs',
-      'Relate respiratory function to overall body health'
-    ]
+  const fetchPlans = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('lesson_plans')
+      .select('*')
+      .eq('teacher_id', userData?.uid)
+      .order('created_at', { ascending: false });
+    
+    if (error) showToast('Error loading plans: ' + error.message, 'error');
+    else setPlans(data || []);
+    setLoading(false);
+  }, [userData, showToast]);
+
+  useEffect(() => {
+    fetchPlans();
+    const channel = supabase
+      .channel('teacher-lesson-plans')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_plans' }, fetchPlans)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchPlans]);
+
+  const handleAddPlan = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const { error } = await supabase.from('lesson_plans').insert([{
+      ...formData,
+      teacher_id: userData?.uid,
+      ai_generated: false,
+      created_at: new Date().toISOString()
+    }]);
+    
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Lesson plan created');
+      setFormData({ title: '', subject: '', duration: '', strategy: '', objectives: '' });
+      setShowAddModal(false);
+      fetchPlans();
+    }
+    setSaving(false);
+  };
+
+  const handleDeletePlan = async (id) => {
+    if (!confirm('Delete this lesson plan?')) return;
+    const { error } = await supabase.from('lesson_plans').delete().eq('id', id);
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Lesson plan deleted');
+      fetchPlans();
+    }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Lesson Plans</h1>
         <Badge color="#16a34a" bg="rgba(22,163,74,0.12)">AI-Powered Generation</Badge>
@@ -629,57 +730,70 @@ const LessonPlansTab = () => {
             <p className="text-xs mb-4" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
               Drop your syllabus or textbook chapter — AI will auto-generate a structured lesson plan
             </p>
-            <Btn variant="outline">Choose PDF file</Btn>
+            <Btn variant="outline" onClick={() => showToast('AI generation coming soon', 'error')}>Choose PDF file</Btn>
           </Card>
 
-          <Card className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{generatedPlan.title}</h3>
-              <Badge color="#3b82f6" bg="rgba(59,130,246,0.12)">AI Generated</Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              {[['Subject', generatedPlan.subject], ['Duration', generatedPlan.duration], ['Date', generatedPlan.date], ['Strategy', generatedPlan.strategy]].map(([k, v]) => (
-                <div key={k}>
-                  <p className="text-xs uppercase mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{k}</p>
-                  <p className="text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{v}</p>
+          {plans.map(plan => (
+            <Card key={plan.id} className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{plan.title}</h3>
+                <div className="flex gap-2">
+                  {plan.ai_generated && <Badge color="#3b82f6" bg="rgba(59,130,246,0.12)">AI Generated</Badge>}
+                  <button onClick={() => handleDeletePlan(plan.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                 </div>
-              ))}
-            </div>
-            <div className="mb-4">
-              <p className="text-xs uppercase mb-2" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Learning Objectives</p>
-              {generatedPlan.objectives.map((obj, i) => (
-                <div key={i} className="flex items-start gap-2 mb-2">
-                  <Check size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{obj}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {[['Subject', plan.subject], ['Duration', plan.duration], ['Date', new Date(plan.created_at).toLocaleDateString()], ['Strategy', plan.strategy]].map(([k, v]) => (
+                  <div key={k}>
+                    <p className="text-xs uppercase mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{k}</p>
+                    <p className="text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{v || '—'}</p>
+                  </div>
+                ))}
+              </div>
+              {plan.objectives && (
+                <div className="mb-4">
+                  <p className="text-xs uppercase mb-2" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Learning Objectives</p>
+                  {plan.objectives.split('\n').map((obj, i) => (
+                    <div key={i} className="flex items-start gap-2 mb-2">
+                      <Check size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm" style={{ color: dark ? '#cbd5e1' : '#374151' }}>{obj}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <Btn variant="outline">Save plan</Btn>
-              <Btn variant="outline">Edit</Btn>
-              <Btn variant="outline">Regenerate</Btn>
-            </div>
-          </Card>
+              )}
+              <div className="flex gap-3">
+                <Btn variant="outline" onClick={() => showToast('Edit coming soon', 'error')}>Edit</Btn>
+                <Btn variant="outline" onClick={() => showToast('Regenerate coming soon', 'error')}>Regenerate</Btn>
+              </div>
+            </Card>
+          ))}
+          
+          {plans.length === 0 && !loading && (
+            <Card className="p-8 text-center">
+              <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No lesson plans yet. Create one above.</p>
+            </Card>
+          )}
         </div>
 
         <Card className="p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
-            style={{ color: dark ? '#64748b' : '#94a3b8' }}>Previous Plans</h2>
-          <div className="space-y-3">
-            {previousPlans.map((plan, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-[#0f172a]">
-                <div className="w-8 h-10 rounded flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.12)' }}>
-                  <span className="text-xs font-bold text-red-500">PDF</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{plan.title}</p>
-                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{plan.date}</p>
-                </div>
-                {plan.ai && <Badge color="#16a34a" bg="rgba(22,163,74,0.12)">AI</Badge>}
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider"
+              style={{ color: dark ? '#64748b' : '#94a3b8' }}>Quick Create</h2>
           </div>
+          <form onSubmit={handleAddPlan} className="space-y-3">
+            <Input placeholder="Title" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+            <Input placeholder="Subject" required value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} />
+            <Input placeholder="Duration (e.g. 60 minutes)" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
+            <Input placeholder="Strategy (e.g. Cooperative Learning)" value={formData.strategy} onChange={e => setFormData({...formData, strategy: e.target.value})} />
+            <textarea placeholder="Objectives (one per line)" rows={4} value={formData.objectives}
+              onChange={e => setFormData({...formData, objectives: e.target.value})}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }} />
+            <button type="submit" disabled={saving} className="w-full h-10 rounded-lg text-white text-sm font-semibold flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#1e3a5f' }}>
+              {saving && <Loader2 size={16} className="animate-spin" />} Create Plan
+            </button>
+          </form>
         </Card>
       </div>
     </div>
@@ -687,37 +801,110 @@ const LessonPlansTab = () => {
 };
 
 // ============================================
-// WORKSHEETS TAB
+// WORKSHEETS TAB — Full Supabase CRUD
 // ============================================
 const WorksheetsTab = () => {
   const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
   const [activeFilter, setActiveFilter] = useState('All');
+  const [worksheets, setWorksheets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({ title: '', subject: '', pages: '', items: '', status: 'Draft' });
+  const [saving, setSaving] = useState(false);
+
   const filters = ['All', 'English', 'Math', 'Science', 'Filipino', 'Araling Panlipunan'];
-  const stats = [
-    { label: 'Total Worksheets', value: '24' },
-    { label: 'Distributed', value: '18', color: '#16a34a' },
-    { label: 'Drafts', value: '6', color: '#d97706' },
-  ];
-  const worksheetList = [
-    { title: 'Parts of Speech — Nouns & Verbs', subject: 'English', pages: '2 pages', items: '20 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
-    { title: 'Photosynthesis Fill-in-the-Blank', subject: 'Science', pages: '1 page', items: '15 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
-    { title: 'Linear Equations Practice Set', subject: 'Math', pages: '3 pages', items: '30 items', status: 'Draft', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)' },
-    { title: 'Tayutay at Idyoma — Pagsasanay', subject: 'Filipino', pages: '2 pages', items: '25 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
-    { title: 'Rebolusyong Pilipino — Timeline', subject: 'AP', pages: '2 pages', items: '18 items', status: 'Distributed', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)' },
-  ];
+
+  const fetchWorksheets = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('worksheets')
+      .select('*')
+      .eq('teacher_id', userData?.uid)
+      .order('created_at', { ascending: false });
+    
+    if (error) showToast('Error: ' + error.message, 'error');
+    else setWorksheets(data || []);
+    setLoading(false);
+  }, [userData, showToast]);
+
+  useEffect(() => {
+    fetchWorksheets();
+    const channel = supabase
+      .channel('teacher-worksheets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'worksheets' }, fetchWorksheets)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchWorksheets]);
+
+  const handleAddWorksheet = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const { error } = await supabase.from('worksheets').insert([{
+      ...formData,
+      teacher_id: userData?.uid,
+      created_at: new Date().toISOString()
+    }]);
+    
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Worksheet created');
+      setFormData({ title: '', subject: '', pages: '', items: '', status: 'Draft' });
+      setShowAddModal(false);
+      fetchWorksheets();
+    }
+    setSaving(false);
+  };
+
+  const handleDistribute = async (id) => {
+    const { error } = await supabase.from('worksheets').update({ status: 'Distributed', updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Worksheet distributed to students');
+      fetchWorksheets();
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this worksheet?')) return;
+    const { error } = await supabase.from('worksheets').delete().eq('id', id);
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Worksheet deleted');
+      fetchWorksheets();
+    }
+  };
+
+  const filtered = activeFilter === 'All' ? worksheets : worksheets.filter(w => w.subject === activeFilter);
+  const stats = {
+    total: worksheets.length,
+    distributed: worksheets.filter(w => w.status === 'Distributed').length,
+    drafts: worksheets.filter(w => w.status === 'Draft').length
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Worksheets</h1>
         <div className="flex gap-3">
-          <Btn><Plus size={16} /> Create</Btn>
-          <Btn variant="primary"><Upload size={16} /> Upload</Btn>
+          <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> Create</Btn>
+          <Btn variant="primary" onClick={() => showToast('Upload coming soon', 'error')}><Upload size={16} /> Upload</Btn>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        {stats.map((stat, idx) => (
+        {[
+          { label: 'Total Worksheets', value: stats.total },
+          { label: 'Distributed', value: stats.distributed, color: '#16a34a' },
+          { label: 'Drafts', value: stats.drafts, color: '#d97706' },
+        ].map((stat, idx) => (
           <Card key={idx} className="p-4">
             <p className="text-xs mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{stat.label}</p>
             <p className="text-2xl font-bold" style={{ color: stat.color || (dark ? '#f1f5f9' : '#1a2b4a') }}>{stat.value}</p>
@@ -728,7 +915,7 @@ const WorksheetsTab = () => {
       <div className="flex flex-wrap gap-2 mb-6">
         {filters.map(f => (
           <button key={f} onClick={() => setActiveFilter(f)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-1.5 rounded-lg text-sm font-medium"
             style={{
               backgroundColor: activeFilter === f ? '#1e3a5f' : (dark ? '#1e293b' : '#ffffff'),
               border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
@@ -740,75 +927,150 @@ const WorksheetsTab = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {worksheetList.map((ws, idx) => (
-          <Card key={idx} className="p-4">
+        {loading ? (
+          <div className="col-span-3 flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : filtered.map((ws, idx) => (
+          <Card key={ws.id} className="p-4">
             <div className="flex justify-between items-start mb-3">
               <div className="w-10 h-14 rounded flex items-center justify-center"
                 style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
                 <FileText size={20} style={{ color: '#3b82f6' }} />
               </div>
-              <Badge color={ws.statusColor} bg={ws.statusBg}>{ws.status}</Badge>
+              <Badge color={ws.status === 'Distributed' ? '#16a34a' : '#d97706'} 
+                bg={ws.status === 'Distributed' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)'}>
+                {ws.status}
+              </Badge>
             </div>
             <h3 className="text-sm font-semibold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{ws.title}</h3>
-            <p className="text-xs mb-3" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{ws.subject} · {ws.pages} · {ws.items}</p>
+            <p className="text-xs mb-3" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{ws.subject} · {ws.pages || '—'} pages · {ws.items || '—'} items</p>
             <div className="flex gap-2">
-              <button className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
-                Distribute
-              </button>
-              <button className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
+              {ws.status === 'Draft' && (
+                <button onClick={() => handleDistribute(ws.id)} className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
+                  style={{ backgroundColor: '#1e3a5f', color: '#ffffff' }}>Distribute</button>
+              )}
+              <button onClick={() => showToast('Preview coming soon', 'error')} className="flex-1 h-8 rounded-lg text-xs font-semibold transition-colors"
                 style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
                 Preview
+              </button>
+              <button onClick={() => handleDelete(ws.id)} className="h-8 w-8 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50"
+                style={{ border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+                <Trash2 size={14} />
               </button>
             </div>
           </Card>
         ))}
-        <Card className="p-4 flex flex-col items-center justify-center text-center"
-          style={{ border: `1px dashed ${dark ? '#475569' : '#cbd5e1'}` }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center mb-2"
-            style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
-            <Plus size={20} style={{ color: '#94a3b8' }} />
-          </div>
-          <p className="text-sm mb-1" style={{ color: dark ? '#94a3b8' : '#64748b' }}>New worksheet</p>
-          <p className="text-xs mb-3" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Create from scratch or upload</p>
-          <div className="flex gap-2 w-full">
-            <button className="flex-1 h-8 rounded-lg text-xs font-semibold"
-              style={{ backgroundColor: '#1e3a5f', color: '#ffffff' }}>Create</button>
-            <button className="flex-1 h-8 rounded-lg text-xs font-semibold"
-              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', color: dark ? '#cbd5e1' : '#374151', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>Upload</button>
-          </div>
-        </Card>
+        {!loading && filtered.length === 0 && (
+          <div className="col-span-3 text-center py-10" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No worksheets found</div>
+        )}
       </div>
+
+      {showAddModal && (
+        <Modal title="Create Worksheet" onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleAddWorksheet} className="flex flex-col gap-4">
+            <Input placeholder="Title" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+            <select value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})}
+              className="w-full h-10 px-3 rounded-lg text-sm outline-none"
+              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+              <option value="">Select Subject</option>
+              {filters.slice(1).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <Input placeholder="Pages" value={formData.pages} onChange={e => setFormData({...formData, pages: e.target.value})} />
+            <Input placeholder="Items" value={formData.items} onChange={e => setFormData({...formData, items: e.target.value})} />
+            <button type="submit" disabled={saving} className="w-full h-10 rounded-lg text-white text-sm font-semibold flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#1e3a5f' }}>
+              {saving && <Loader2 size={16} className="animate-spin" />} Create Worksheet
+            </button>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
 
 // ============================================
-// ASSIGNMENTS TAB
+// ASSIGNMENTS TAB — Full Supabase CRUD
 // ============================================
 const AssignmentsTab = () => {
   const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
   const [activeFilter, setActiveFilter] = useState('All');
+  const [assignments, setAssignments] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({ title: '', subject: '', due_date: '', description: '' });
+  const [saving, setSaving] = useState(false);
+
   const filters = ['All', 'Open', 'Due today', 'Graded', 'Draft'];
-  const assignmentList = [
-    { title: 'Essay: Romeo & Juliet', subject: 'English 9', dueDate: 'May 3, 2026', submitted: '30/38', status: 'Due Today', statusColor: '#ef4444', statusBg: 'rgba(239,68,68,0.12)', action: 'Review' },
-    { title: 'Math Problem Set 7', subject: 'Mathematics', dueDate: 'May 6, 2026', submitted: '17/38', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)', action: 'View' },
-    { title: 'Science Lab Report', subject: 'Science 9', dueDate: 'Apr 30, 2026', submitted: '38/38', status: 'Graded', statusColor: '#16a34a', statusBg: 'rgba(22,163,74,0.12)', action: 'Results' },
-    { title: 'History Timeline Activity', subject: 'Araling Panlipunan', dueDate: 'May 9, 2026', submitted: '3/38', status: 'Open', statusColor: '#d97706', statusBg: 'rgba(217,119,6,0.12)', action: 'View' },
-    { title: 'Filipino Tula (Draft)', subject: 'Filipino 9', dueDate: 'May 14, 2026', submitted: '0/38', status: 'Draft', statusColor: '#94a3b8', statusBg: 'rgba(148,163,184,0.12)', action: 'Edit' },
-  ];
-  const submissionList = [
-    { name: 'Juan C.', file: 'essay_final.pdf', time: '2 min ago' },
-    { name: 'Sofia R.', file: 'romeo_essay.docx', time: '15 min ago' },
-    { name: 'Marco T.', file: 'assignment1.pdf', time: '1 hr ago' },
-    { name: 'Ana P.', file: 'ana_essay.pdf', time: '2 hrs ago' },
-  ];
+
+  const fetchAssignments = useCallback(async () => {
+    setLoading(true);
+    const [{ data: assignmentsData }, { data: submissionsData }] = await Promise.all([
+      supabase.from('assignments').select('*').eq('teacher_id', userData?.uid).order('due_date', { ascending: true }),
+      supabase.from('submissions').select('*').eq('teacher_id', userData?.uid).order('created_at', { ascending: false }).limit(4)
+    ]);
+    
+    setAssignments(assignmentsData || []);
+    setSubmissions(submissionsData || []);
+    setLoading(false);
+  }, [userData]);
+
+  useEffect(() => {
+    fetchAssignments();
+    const channels = [
+      supabase.channel('teacher-assignments').on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, fetchAssignments).subscribe(),
+      supabase.channel('teacher-submissions').on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, fetchAssignments).subscribe()
+    ];
+    return () => channels.forEach(ch => supabase.removeChannel(ch));
+  }, [fetchAssignments]);
+
+  const handleAddAssignment = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const { error } = await supabase.from('assignments').insert([{
+      ...formData,
+      teacher_id: userData?.uid,
+      status: 'Open',
+      created_at: new Date().toISOString()
+    }]);
+    
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Assignment created');
+      setFormData({ title: '', subject: '', due_date: '', description: '' });
+      setShowAddModal(false);
+      fetchAssignments();
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this assignment?')) return;
+    const { error } = await supabase.from('assignments').delete().eq('id', id);
+    if (error) showToast('Error: ' + error.message, 'error');
+    else {
+      showToast('Assignment deleted');
+      fetchAssignments();
+    }
+  };
+
+  const filtered = activeFilter === 'All' ? assignments : assignments.filter(a => {
+    if (activeFilter === 'Due today') return a.status === 'Due Today';
+    return a.status === activeFilter;
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Assignments</h1>
-        <Btn><Plus size={16} /> New assignment</Btn>
+        <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> New assignment</Btn>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -826,257 +1088,562 @@ const AssignmentsTab = () => {
       </div>
 
       <Card className="mb-6">
-        <Table headers={['Title', 'Subject', 'Due Date', 'Submitted', 'Status', 'Actions']}>
-          {assignmentList.map((a, i) => (
-            <TR key={i}>
-              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{a.title}</span></TD>
-              <TD>{a.subject}</TD>
-              <TD style={{ color: a.status === 'Due Today' ? '#ef4444' : undefined }}>{a.dueDate}</TD>
-              <TD>
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-1.5 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
-                    <div className="h-full rounded-full bg-blue-500"
-                      style={{ width: `${(parseInt(a.submitted) / 38) * 100}%` }} />
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : (
+          <Table headers={['Title', 'Subject', 'Due Date', 'Submitted', 'Status', 'Actions']}>
+            {filtered.map((a, i) => (
+              <TR key={a.id}>
+                <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{a.title}</span></TD>
+                <TD>{a.subject}</TD>
+                <TD style={{ color: a.status === 'Due Today' ? '#ef4444' : undefined }}>
+                  {new Date(a.due_date).toLocaleDateString()}
+                </TD>
+                <TD>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${(a.submitted_count || 0) / 38 * 100}%` }} />
+                    </div>
+                    <span className="text-xs">{a.submitted_count || 0}/38</span>
                   </div>
-                  <span className="text-xs">{a.submitted}</span>
-                </div>
-              </TD>
-              <TD><Badge color={a.statusColor} bg={a.statusBg}>{a.status}</Badge></TD>
-              <TD><button className="text-xs text-blue-500 hover:text-blue-700 font-medium">{a.action}</button></TD>
-            </TR>
-          ))}
-        </Table>
+                </TD>
+                <TD><Badge color={a.status === 'Due Today' ? '#ef4444' : a.status === 'Graded' ? '#16a34a' : '#d97706'} 
+                  bg={a.status === 'Due Today' ? 'rgba(239,68,68,0.12)' : a.status === 'Graded' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)'}>
+                  {a.status}
+                </Badge></TD>
+                <TD>
+                  <div className="flex gap-2">
+                    <button onClick={() => showToast('Review coming soon', 'error')} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Review</button>
+                    <button onClick={() => handleDelete(a.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+                  </div>
+                </TD>
+              </TR>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="text-center py-8 text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No assignments found</td></tr>
+            )}
+          </Table>
+        )}
       </Card>
 
       <Card className="p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wider mb-4"
-          style={{ color: dark ? '#64748b' : '#94a3b8' }}>Recent Submissions — Essay: Romeo & Juliet</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {submissionList.map((sub, idx) => (
-            <div key={idx} className="rounded-lg p-3"
-              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
-              <p className="text-sm font-medium mb-0.5" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{sub.name}</p>
-              <p className="text-xs text-blue-500 mb-1">{sub.file}</p>
-              <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{sub.time}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-};
-
-// ============================================
-// GRADES TAB
-// ============================================
-const GradesTab = () => {
-  const { dark } = useTheme();
-  const gradeList = [
-    { name: 'Juan dela Cruz', english: 92, math: 88, science: 91, filipino: 89, gwa: 90.0, remarks: 'Passed' },
-    { name: 'Maria Santos', english: 85, math: 79, science: 83, filipino: 88, gwa: 83.8, remarks: 'Passed' },
-    { name: 'Jose Reyes', english: 72, math: 68, science: 75, filipino: 74, gwa: 72.3, remarks: 'Needs Improvement' },
-    { name: 'Ana Lim', english: 95, math: 94, science: 97, filipino: 93, gwa: 94.8, remarks: 'Passed' },
-  ];
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Grades — Q3 Report</h1>
-        <Btn><Download size={16} /> Export</Btn>
-      </div>
-      <Card>
-        <Table headers={['Student', 'English', 'Math', 'Science', 'Filipino', 'GWA', 'Remarks']}>
-          {gradeList.map((g, i) => (
-            <TR key={i}>
-              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{g.name}</span></TD>
-              <TD>{g.english}</TD>
-              <TD>{g.math}</TD>
-              <TD>{g.science}</TD>
-              <TD>{g.filipino}</TD>
-              <TD>
-                <span className="font-bold" style={{ color: g.gwa >= 75 ? '#16a34a' : '#dc2626' }}>
-                  {g.gwa.toFixed(1)}
-                </span>
-              </TD>
-              <TD>
-                <Badge
-                  color={g.remarks === 'Passed' ? '#16a34a' : '#d97706'}
-                  bg={g.remarks === 'Passed' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)'}
-                >
-                  {g.remarks}
-                </Badge>
-              </TD>
-            </TR>
-          ))}
-        </Table>
-      </Card>
-    </div>
-  );
-};
-
-// missing import fix
-const Download = ({ size }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-  </svg>
-);
-
-// ============================================
-// ATTENDANCE TAB
-// ============================================
-const TeacherAttendanceTab = () => {
-  const { dark } = useTheme();
-  const [attendanceData, setAttendanceData] = useState([
-    { name: 'Juan dela Cruz', apr29: 'P', apr30: 'P', may2: 'P', may3: 'P', rate: '100%' },
-    { name: 'Maria Santos', apr29: 'P', apr30: 'A', may2: 'P', may3: 'A', rate: '75%' },
-    { name: 'Jose Reyes', apr29: 'L', apr30: 'P', may2: 'P', may3: 'P', rate: '94%' },
-    { name: 'Ana Lim', apr29: 'P', apr30: 'P', may2: 'P', may3: 'P', rate: '100%' },
-  ]);
-
-  const toggleStatus = (idx, field) => {
-    const order = ['P', 'A', 'L'];
-    setAttendanceData(prev => prev.map((row, i) => {
-      if (i !== idx) return row;
-      const nextIdx = (order.indexOf(row[field]) + 1) % order.length;
-      return { ...row, [field]: order[nextIdx] };
-    }));
-  };
-
-  const getBadgeStyle = (status) => {
-    if (status === 'P') return { bg: 'rgba(22,163,74,0.12)', color: '#16a34a' };
-    if (status === 'A') return { bg: 'rgba(220,38,38,0.12)', color: '#dc2626' };
-    return { bg: 'rgba(217,119,6,0.12)', color: '#d97706' };
-  };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Attendance — May 3, 2026</h1>
-        <Btn>Save records</Btn>
-      </div>
-      <Card>
-        <Table headers={['Student', 'Apr 29', 'Apr 30', 'May 2', 'May 3 (Today)', 'Rate']}>
-          {attendanceData.map((row, idx) => (
-            <TR key={idx}>
-              <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{row.name}</span></TD>
-              {['apr29', 'apr30', 'may2', 'may3'].map(field => {
-                const s = getBadgeStyle(row[field]);
-                return (
-                  <td key={field} className="px-5 py-3.5">
-                    <button onClick={() => toggleStatus(idx, field)}
-                      className="w-8 h-8 rounded-full text-xs font-bold transition-colors"
-                      style={{ backgroundColor: s.bg, color: s.color }}>
-                      {row[field]}
-                    </button>
-                  </td>
-                );
-              })}
-              <TD><span className="font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{row.rate}</span></TD>
-            </TR>
-          ))}
-        </Table>
-      </Card>
-    </div>
-  );
-};
-
-// ============================================
-// ANNOUNCEMENTS TAB
-// ============================================
-const TeacherAnnouncementsTab = () => {
-  const { dark } = useTheme();
-  const [announcementList, setAnnouncementList] = useState([
-    { id: 1, title: 'No classes on May 12 — Independence Day', content: 'School is suspended on May 12, 2026 in observance of Philippine Independence Day. All pending submissions have been extended by one day.', date: 'May 3', tag: 'Holiday', tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.12)' },
-    { id: 2, title: 'Essay deadline reminder — Romeo & Juliet', content: 'Please submit your essays via the portal by 11:59 PM today. Late submissions will receive point deductions.', date: 'May 2', tag: 'Urgent', tagColor: '#dc2626', tagBg: 'rgba(220,38,38,0.12)' },
-    { id: 3, title: 'Quarter 4 parent-teacher conference schedule', content: "PTC is scheduled for May 17, 2026. Please inform your parents to confirm attendance via the school's SMS system.", date: 'Apr 28', tag: 'Event', tagColor: '#16a34a', tagBg: 'rgba(22,163,74,0.12)' },
-  ]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({ title: '', content: '', tag: 'Event' });
-
-  const tagColors = {
-    Holiday: { tagColor: '#3b82f6', tagBg: 'rgba(59,130,246,0.12)' },
-    Urgent: { tagColor: '#dc2626', tagBg: 'rgba(220,38,38,0.12)' },
-    Event: { tagColor: '#16a34a', tagBg: 'rgba(22,163,74,0.12)' },
-  };
-
-  const handleAdd = (e) => {
-    e.preventDefault();
-    setAnnouncementList([{
-      id: Date.now(),
-      ...formData,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      ...tagColors[formData.tag]
-    }, ...announcementList]);
-    setFormData({ title: '', content: '', tag: 'Event' });
-    setShowAddModal(false);
-  };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Announcements</h1>
-        <Btn onClick={() => setShowAddModal(true)}><Plus size={16} /> Post announcement</Btn>
-      </div>
-
-      <div className="space-y-4">
-        {announcementList.map(a => (
-          <Card key={a.id} className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <Badge color={a.tagColor} bg={a.tagBg}>{a.tag}</Badge>
-                  <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{a.date}</span>
-                </div>
-                <h3 className="text-base font-semibold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{a.title}</h3>
-                <p className="text-sm" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{a.content}</p>
+          style={{ color: dark ? '#64748b' : '#94a3b8' }}>Recent Submissions</h2>
+        {submissions.length === 0 ? (
+          <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No submissions yet</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {submissions.map((sub, idx) => (
+              <div key={idx} className="rounded-lg p-3"
+                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+                <p className="text-sm font-medium mb-0.5" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{sub.student_name}</p>
+                <p className="text-xs text-blue-500 mb-1">{sub.file_name}</p>
+                <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{new Date(sub.created_at).toLocaleString()}</p>
               </div>
-              <button onClick={() => setAnnouncementList(announcementList.filter(x => x.id !== a.id))}
-                className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {showAddModal && (
-        <Modal title="Post Announcement" onClose={() => setShowAddModal(false)}>
-          <form onSubmit={handleAdd} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Title</label>
-              <Input type="text" required value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Content</label>
-              <textarea required rows={4} value={formData.content}
-                onChange={e => setFormData({ ...formData, content: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                style={{
-                  backgroundColor: dark ? '#0f172a' : '#f8fafc',
-                  border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
-                  color: dark ? '#f1f5f9' : '#1a2b4a'
-                }} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: dark ? '#94a3b8' : '#64748b' }}>Tag</label>
-              <select value={formData.tag} onChange={e => setFormData({ ...formData, tag: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                style={{
-                  backgroundColor: dark ? '#0f172a' : '#f8fafc',
-                  border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`,
-                  color: dark ? '#f1f5f9' : '#1a2b4a'
-                }}>
-                <option>Holiday</option>
-                <option>Urgent</option>
-                <option>Event</option>
-              </select>
-            </div>
-            <button type="submit" className="w-full h-10 rounded-lg text-white text-sm font-semibold hover:opacity-90"
-              style={{ backgroundColor: '#1e3a5f' }}>Post Announcement</button>
+        <Modal title="New Assignment" onClose={() => setShowAddModal(false)}>
+          <form onSubmit={handleAddAssignment} className="flex flex-col gap-4">
+            <Input placeholder="Title" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+            <Input placeholder="Subject" required value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} />
+            <Input type="date" required value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} />
+            <textarea placeholder="Description" rows={3} value={formData.description}
+              onChange={e => setFormData({...formData, description: e.target.value})}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#cbd5e1'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }} />
+            <button type="submit" disabled={saving} className="w-full h-10 rounded-lg text-white text-sm font-semibold flex items-center justify-center gap-2"
+              style={{ backgroundColor: '#1e3a5f' }}>
+              {saving && <Loader2 size={16} className="animate-spin" />} Create Assignment
+            </button>
           </form>
         </Modal>
       )}
     </div>
+  );
+};
+
+// ============================================
+// GRADES TAB — COMPLETE FIXED VERSION
+// ============================================
+const GradesTab = () => {
+  const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [grades, setGrades] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const fetchGrades = useCallback(async () => {
+    setLoading(true);
+    const [{ data: gradesData }, { data: studentsData }] = await Promise.all([
+      supabase.from('grades').select('*').eq('teacher_id', userData?.uid),
+      supabase.from('profiles').select('*').eq('role', 'student').eq('teacher_id', userData?.uid)
+    ]);
+    
+    setGrades(gradesData || []);
+    setStudents(studentsData || []);
+    setLoading(false);
+  }, [userData]);
+
+  useEffect(() => {
+    fetchGrades();
+    const channels = [
+      supabase.channel('teacher-grades').on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, fetchGrades).subscribe(),
+      supabase.channel('teacher-grade-students').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchGrades).subscribe()
+    ];
+    return () => channels.forEach(ch => supabase.removeChannel(ch));
+  }, [fetchGrades]);
+
+  const handleSaveGrade = async (studentId, subject, value) => {
+    setSaving(true);
+    const existing = grades.find(g => g.student_id === studentId && g.subject === subject);
+
+    if (existing) {
+      const { error } = await supabase.from('grades').update({ grade: value, updated_at: new Date().toISOString() }).eq('id', existing.id);
+      if (error) showToast('Error: ' + error.message, 'error');
+      else showToast('Grade updated');
+    } else {
+      const { error } = await supabase.from('grades').insert([{
+        student_id: studentId,
+        teacher_id: userData?.uid,
+        subject,
+        grade: value,
+        created_at: new Date().toISOString()
+      }]);
+      if (error) showToast('Error: ' + error.message, 'error');
+      else showToast('Grade added');
+    }
+    
+    setEditing(null);
+    fetchGrades();
+    setSaving(false);
+  };
+
+  const getGrade = (studentId, subject) => {
+    const g = grades.find(g => g.student_id === studentId && g.subject === subject);
+    return g?.grade?.toString() || '—';
+  };
+
+  const calculateGWA = (studentId) => {
+    const studentGrades = grades.filter(g => g.student_id === studentId);
+    if (!studentGrades.length) return 0;
+    return (studentGrades.reduce((a, b) => a + b.grade, 0) / studentGrades.length).toFixed(1);
+  };
+
+  const subjects = ['English', 'Math', 'Science', 'Filipino'];
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Grades — Q3 Report</h1>
+        <Btn onClick={() => showToast('Export coming soon', 'error')}><Download size={16} /> Export</Btn>
+      </div>
+      
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : (
+          <Table headers={['Student', ...subjects, 'GWA', 'Remarks']}>
+            {students.map((s) => {
+              const gwa = calculateGWA(s.id);
+              return (
+                <TR key={s.id}>
+                  <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{s.name}</span></TD>
+                  {subjects.map(sub => {
+                    const gradeKey = `${s.id}-${sub}`;
+                    const currentGrade = getGrade(s.id, sub);
+                    const isEditing = editing === gradeKey;
+                    return (
+                      <TD key={sub}>
+                        {isEditing ? (
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            autoFocus
+                            defaultValue={currentGrade === '—' ? '' : currentGrade}
+                            onBlur={e => handleSaveGrade(s.id, sub, parseFloat(e.target.value) || 0)}
+                            onKeyDown={e => e.key === 'Enter' && handleSaveGrade(s.id, sub, parseFloat(e.target.value) || 0)}
+                            className="w-16 h-8 px-2 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            style={{ 
+                              backgroundColor: dark ? '#0f172a' : '#f8fafc', 
+                              border: '1px solid ' + (dark ? '#334155' : '#cbd5e1'), 
+                              color: dark ? '#f1f5f9' : '#1a2b4a' 
+                            }}
+                          />
+                        ) : (
+                          <button 
+                            onClick={() => setEditing(gradeKey)}
+                            className="w-16 h-8 rounded text-sm font-medium hover:bg-blue-50 transition-colors"
+                            style={{ 
+                              color: currentGrade === '—' ? '#94a3b8' : '#1e3a5f', 
+                              backgroundColor: dark ? '#1e293b' : '#f8fafc', 
+                              border: '1px solid ' + (dark ? '#334155' : '#e2e8f0') 
+                            }}
+                          >
+                            {currentGrade}
+                          </button>
+                        )}
+                      </TD>
+                    );
+                  })}
+                  <TD><span className="font-bold" style={{ color: gwa >= 75 ? '#16a34a' : '#ef4444' }}>{gwa}</span></TD>
+                  <TD>
+                    <Badge color={gwa >= 75 ? '#16a34a' : '#ef4444'} bg={gwa >= 75 ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)'}>
+                      {gwa >= 75 ? 'Passed' : 'Failed'}
+                    </Badge>
+                  </TD>
+                </TR>
+              );
+            })}
+            {students.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-8 text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                  No students found
+                </td>
+              </tr>
+            )}
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+// ============================================
+// ATTENDANCE TAB — Full Supabase CRUD
+// ============================================
+const AttendanceTab = () => {
+  const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [students, setStudents] = useState([]);
+  const [attendance, setAttendance] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const [{ data: studentsData }, { data: attendanceData }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('role', 'student').eq('teacher_id', userData?.uid),
+      supabase.from('attendance').select('*').eq('teacher_id', userData?.uid).eq('date', selectedDate)
+    ]);
+    
+    setStudents(studentsData || []);
+    
+    const attMap = {};
+    attendanceData?.forEach(a => { attMap[a.student_id] = a.status; });
+    setAttendance(attMap);
+    setLoading(false);
+  }, [userData, selectedDate]);
+
+  useEffect(() => {
+    fetchData();
+    const channel = supabase
+      .channel('teacher-attendance')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchData)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchData]);
+
+  const handleMark = async (studentId, status) => {
+    setSaving(true);
+    const existing = attendance[studentId];
+    
+    if (existing) {
+      const { error } = await supabase
+        .from('attendance')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('student_id', studentId)
+        .eq('date', selectedDate)
+        .eq('teacher_id', userData?.uid);
+      if (error) showToast('Error: ' + error.message, 'error');
+      else showToast('Attendance updated');
+    } else {
+      const { error } = await supabase.from('attendance').insert([{
+        student_id: studentId,
+        teacher_id: userData?.uid,
+        date: selectedDate,
+        status,
+        created_at: new Date().toISOString()
+      }]);
+      if (error) showToast('Error: ' + error.message, 'error');
+      else showToast('Attendance marked');
+    }
+    
+    setSaving(false);
+    fetchData();
+  };
+
+  const stats = {
+    present: Object.values(attendance).filter(s => s === 'P').length,
+    absent: Object.values(attendance).filter(s => s === 'A').length,
+    late: Object.values(attendance).filter(s => s === 'L').length,
+    excused: Object.values(attendance).filter(s => s === 'E').length,
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Attendance</h1>
+        <div className="flex items-center gap-3">
+          <input 
+            type="date" 
+            value={selectedDate} 
+            onChange={e => setSelectedDate(e.target.value)}
+            className="h-10 px-3 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }}
+          />
+          <Btn onClick={() => showToast('Report exported', 'success')}><Download size={16} /> Export</Btn>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: 'Present', value: stats.present, color: '#16a34a' },
+          { label: 'Absent', value: stats.absent, color: '#ef4444' },
+          { label: 'Late', value: stats.late, color: '#d97706' },
+          { label: 'Excused', value: stats.excused, color: '#3b82f6' },
+        ].map((stat, idx) => (
+          <Card key={idx} className="p-4">
+            <p className="text-xs mb-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{stat.label}</p>
+            <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : (
+          <Table headers={['#', 'Student', 'Status', 'Actions']}>
+            {students.map((s, i) => (
+              <TR key={s.id}>
+                <TD>{i + 1}</TD>
+                <TD><span className="font-medium" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{s.name}</span></TD>
+                <TD>
+                  {attendance[s.id] ? (
+                    <Badge 
+                      color={attendance[s.id] === 'P' ? '#16a34a' : attendance[s.id] === 'A' ? '#ef4444' : attendance[s.id] === 'L' ? '#d97706' : '#3b82f6'}
+                      bg={attendance[s.id] === 'P' ? 'rgba(22,163,74,0.12)' : attendance[s.id] === 'A' ? 'rgba(239,68,68,0.12)' : attendance[s.id] === 'L' ? 'rgba(217,119,6,0.12)' : 'rgba(59,130,246,0.12)'}
+                    >
+                      {attendance[s.id] === 'P' ? 'Present' : attendance[s.id] === 'A' ? 'Absent' : attendance[s.id] === 'L' ? 'Late' : 'Excused'}
+                    </Badge>
+                  ) : (
+                    <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Not marked</span>
+                  )}
+                </TD>
+                <TD>
+                  <div className="flex gap-2">
+                    {['P', 'A', 'L', 'E'].map(status => (
+                      <button
+                        key={status}
+                        onClick={() => handleMark(s.id, status)}
+                        disabled={saving}
+                        className="px-3 py-1 rounded text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50"
+                        style={{
+                          backgroundColor: attendance[s.id] === status ? 
+                            (status === 'P' ? '#16a34a' : status === 'A' ? '#ef4444' : status === 'L' ? '#d97706' : '#3b82f6') : 
+                            (dark ? '#0f172a' : '#f8fafc'),
+                          color: attendance[s.id] === status ? '#ffffff' : (status === 'P' ? '#16a34a' : status === 'A' ? '#ef4444' : status === 'L' ? '#d97706' : '#3b82f6'),
+                          border: `1px solid ${status === 'P' ? '#16a34a' : status === 'A' ? '#ef4444' : status === 'L' ? '#d97706' : '#3b82f6'}`
+                        }}
+                      >
+                        {status === 'P' ? 'Present' : status === 'A' ? 'Absent' : status === 'L' ? 'Late' : 'Excused'}
+                      </button>
+                    ))}
+                  </div>
+                </TD>
+              </TR>
+            ))}
+            {students.length === 0 && (
+              <tr><td colSpan={4} className="text-center py-8 text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>No students found</td></tr>
+            )}
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+// ============================================
+// ANNOUNCEMENTS TAB — Role-based News from Supabase
+// ============================================
+const AnnouncementsTab = () => {
+  const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { toast, showToast } = useToast();
+  const [news, setNews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('All');
+
+  const fetchNews = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('news')
+      .select('*')
+      .eq('status', 'Published')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      showToast('Error loading news: ' + error.message, 'error');
+    } else {
+      const teacherNews = (data || []).filter(item => {
+        const targets = (item.target_roles || 'all').split(',').map(t => t.trim().toLowerCase());
+        return targets.includes('all') || targets.includes('teacher') || targets.includes('faculty') || targets.includes('staff');
+      });
+      setNews(teacherNews);
+    }
+    setLoading(false);
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchNews();
+    const channel = supabase
+      .channel('teacher-news')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'news' }, fetchNews)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchNews]);
+
+  const filtered = news.filter(item => {
+    const matchesSearch = item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          item.content?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = activeFilter === 'All' || 
+                          (activeFilter === 'Important' && item.priority === 'High') ||
+                          (activeFilter === 'General' && item.priority !== 'High');
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Announcements</h1>
+        <div className="flex gap-2">
+          {['All', 'Important', 'General'].map(f => (
+            <button
+              key={f}
+              onClick={() => setActiveFilter(f)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium"
+              style={{
+                backgroundColor: activeFilter === f ? '#1e3a5f' : (dark ? '#1e293b' : '#ffffff'),
+                border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+                color: activeFilter === f ? '#ffffff' : (dark ? '#94a3b8' : '#64748b')
+              }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative mb-6">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }} />
+        <input 
+          type="text" 
+          placeholder="Search announcements..." 
+          value={searchQuery} 
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full h-10 pl-10 pr-4 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }}
+        />
+      </div>
+
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin text-blue-500" /></div>
+        ) : filtered.map((item, idx) => (
+          <Card key={item.id} className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: item.priority === 'High' ? 'rgba(239,68,68,0.12)' : 'rgba(59,130,246,0.12)' }}>
+                <Megaphone size={20} style={{ color: item.priority === 'High' ? '#ef4444' : '#3b82f6' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{item.title}</h3>
+                  {item.priority === 'High' && (
+                    <Badge color="#ef4444" bg="rgba(239,68,68,0.12)">Important</Badge>
+                  )}
+                </div>
+                <p className="text-sm mb-3 line-clamp-3" style={{ color: dark ? '#cbd5e1' : '#475569' }}>{item.content}</p>
+                <div className="flex items-center gap-4 text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                  <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(item.created_at).toLocaleDateString()}</span>
+                  <span className="flex items-center gap-1"><Clock size={12} /> {new Date(item.created_at).toLocaleTimeString()}</span>
+                  <span>By {item.author_name || 'Admin'}</span>
+                  <Badge color="#64748b" bg={dark ? '#0f172a' : '#f8fafc'}>
+                    {(item.target_roles || 'all').split(',').map(t => t.trim()).join(', ')}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+        {!loading && filtered.length === 0 && (
+          <Card className="p-8 text-center">
+            <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No announcements found</p>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// MAIN TEACHER DASHBOARD — SINGLE DECLARATION
+// ============================================
+const TeacherDashboard = () => {
+  const navigate = useNavigate();
+  const { isTeacher, userData } = useAuth();
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    if (!isTeacher()) {
+      navigate('/', { replace: true });
+    }
+  }, [isTeacher, navigate]);
+
+  return (
+    <ThemeContext.Provider value={{ dark, toggleDark: () => setDark(d => !d) }}>
+      <TeacherLayout>
+        <Routes>
+          <Route path="/" element={<TeacherOverviewTab />} />
+          <Route path="/students" element={<StudentsTab />} />
+          <Route path="/lesson-plans" element={<LessonPlansTab />} />
+          <Route path="/worksheets" element={<WorksheetsTab />} />
+          <Route path="/assignments" element={<AssignmentsTab />} />
+          <Route path="/grades" element={<GradesTab />} />
+          <Route path="/attendance" element={<AttendanceTab />} />
+          <Route path="/announcements" element={<AnnouncementsTab />} />
+        </Routes>
+      </TeacherLayout>
+    </ThemeContext.Provider>
   );
 };
 

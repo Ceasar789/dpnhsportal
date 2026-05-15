@@ -2,15 +2,19 @@
 // FILE: src/pages/public/News.jsx
 // PURPOSE: News page - EXACT match to Flutter NewsPage
 // DESIGN: Hero article, latest news grid, newsletter, footer
+// DATA: Live from Supabase 'news' table (admin-managed)
 // ============================================
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Menu, ArrowRight, ExternalLink, Facebook, Globe, Mail } from 'lucide-react';
+import { supabase } from '../../config/supabase';
 
 const News = () => {
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(false);
+  const [newsItems, setNewsItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1100);
@@ -18,6 +22,35 @@ const News = () => {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    fetchNews();
+
+    // Real-time: auto-refresh when admin adds/edits/deletes news
+    const channel = supabase
+      .channel('public-news')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'news' }, () => {
+        fetchNews();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const fetchNews = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('news')
+      .select('*')
+      .eq('status', 'Published')
+      .order('published_at', { ascending: false });
+    if (!error && data) setNewsItems(data);
+    setLoading(false);
+  };
+
+  // Hero = most recent article, rest = remaining
+  const hero = newsItems[0] || null;
+  const rest = newsItems.slice(1);
 
   // ============================================
   // TOP NAVIGATION BAR
@@ -69,9 +102,9 @@ const News = () => {
       onClick={() => navigate(route)}
       className="px-4 py-2 flex flex-col items-center"
     >
-      <span 
+      <span
         className="font-work text-sm"
-        style={{ 
+        style={{
           fontWeight: isActive ? 700 : 500,
           color: isActive ? '#1E3A8A' : '#64748B'
         }}
@@ -88,7 +121,7 @@ const News = () => {
   // HERO SECTION
   // ============================================
   const HeroSection = () => (
-    <div 
+    <div
       className="w-full pt-10 pb-10"
       style={{ paddingLeft: isMobile ? '20px' : '100px', paddingRight: isMobile ? '20px' : '100px' }}
     >
@@ -114,42 +147,44 @@ const News = () => {
   const HeroText = () => (
     <div>
       {/* Category Badge */}
-      <div 
+      <div
         className="inline-block px-3 py-1 rounded-sm mb-4"
         style={{ backgroundColor: 'rgba(254,179,0,0.15)' }}
       >
         <span className="font-work font-bold text-xs tracking-widest" style={{ color: '#7E5700' }}>
-          CAMPUS LIFE
+          {hero.category?.toUpperCase() || 'CAMPUS LIFE'}
         </span>
       </div>
 
       {/* Date */}
       <p className="font-public text-sm mb-4" style={{ color: '#64748B' }}>
-        May 24, 2024
+        {hero.published_at
+          ? new Date(hero.published_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+          : ''}
       </p>
 
       {/* Headline */}
-      <h2 
+      <h2
         className="font-work font-extrabold leading-tight mb-5"
-        style={{ 
+        style={{
           color: '#1E3A8A',
           fontSize: isMobile ? '32px' : '48px',
           letterSpacing: '-1.5px'
         }}
       >
-        Celebrating Academic Excellence: The 45th Annual Commencement Exercises
+        {hero.title}
       </h2>
 
       {/* Description */}
-      <p 
+      <p
         className="font-public text-base leading-relaxed mb-8"
         style={{ color: '#64748B', maxWidth: '500px' }}
       >
-        In a momentous ceremony held at the Main Pavilion, DPNHS honored over 400 graduates who displayed exceptional resilience and scholarly achievement throughout their high school journey.
+        {hero.content?.slice(0, 220)}{hero.content?.length > 220 ? '...' : ''}
       </p>
 
       {/* Read More Button */}
-      <button 
+      <button
         className="inline-flex items-center gap-2 px-6 py-3.5 rounded font-work font-bold text-sm"
         style={{ backgroundColor: '#FEB300', color: '#6A4800' }}
       >
@@ -160,11 +195,12 @@ const News = () => {
   );
 
   const HeroImage = () => (
-    <img 
-      src="/capstoneimage1.jpg" 
-      alt="Commencement" 
+    <img
+      src={hero.image_url || '/capstoneimage1.jpg'}
+      alt={hero.title}
       className="w-full object-cover rounded-lg"
       style={{ height: isMobile ? '250px' : '400px' }}
+      onError={e => { e.target.src = '/capstoneimage1.jpg'; }}
     />
   );
 
@@ -172,10 +208,10 @@ const News = () => {
   // LATEST NEWS SECTION
   // ============================================
   const LatestNewsSection = () => (
-    <div 
+    <div
       className="w-full py-15"
-      style={{ 
-        paddingLeft: isMobile ? '20px' : '100px', 
+      style={{
+        paddingLeft: isMobile ? '20px' : '100px',
         paddingRight: isMobile ? '20px' : '100px',
         paddingTop: '60px',
         paddingBottom: '60px'
@@ -198,69 +234,44 @@ const News = () => {
       {/* News Grid */}
       {isMobile ? (
         <div className="flex flex-col gap-6">
-          <NewsCard 
-            image="/capstoneimage1.jpg"
-            category="ACADEMIC"
-            date="May 16, 2024"
-            title="Mathinking"
-            description="Brainsik bakbakchegchegkwakwakkwakchegkwakwakwak"
-          />
-          <NewsCard 
-            image="/capstoneimage2.jpg"
-            category="SPORTS"
-            date="May 15, 2024"
-            title="Sport and E Sport"
-            description="Sports focus on physical strength, while esports focus on mental skills—both offer entertainment, competition, and growth opportunities."
-          />
-          <NewsCard 
-            image="/capstoneimage3.jpg"
-            category="HERITAGE"
-            date="May 10, 2024"
-            title="The Digital Archive: Preserving School History"
-            description="DPNHS launches its first comprehensive digital library, cataloging over five decades of photographs, records, and student achievements for future..."
-          />
+          {rest.map(item => (
+            <NewsCard
+              key={item.id}
+              image={item.image_url || '/capstoneimage1.jpg'}
+              category={item.category?.toUpperCase() || 'GENERAL'}
+              date={item.published_at ? new Date(item.published_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+              title={item.title}
+              description={item.content?.slice(0, 160) + (item.content?.length > 160 ? '...' : '')}
+            />
+          ))}
         </div>
       ) : (
         <div className="flex gap-6">
-          <div className="flex-1">
-            <NewsCard 
-              image="/capstoneimage1.jpg"
-              category="ACADEMIC"
-              date="May 16, 2024"
-              title="Mathinking"
-              description="Brainsik bakbakchegchegkwakwakkwakchegkwakwakwak"
-            />
-          </div>
-          <div className="flex-1">
-            <NewsCard 
-              image="/capstoneimage2.jpg"
-              category="SPORTS"
-              date="May 15, 2024"
-              title="Sport and E Sport"
-              description="Sports focus on physical strength, while esports focus on mental skills—both offer entertainment, competition, and growth opportunities."
-            />
-          </div>
-          <div className="flex-1">
-            <NewsCard 
-              image="/capstoneimage3.jpg"
-              category="HERITAGE"
-              date="May 10, 2024"
-              title="The Digital Archive: Preserving School History"
-              description="DPNHS launches its first comprehensive digital library, cataloging over five decades of photographs, records, and student achievements for future..."
-            />
-          </div>
+          {rest.slice(0, 3).map(item => (
+            <div key={item.id} className="flex-1">
+              <NewsCard
+                image={item.image_url || '/capstoneimage1.jpg'}
+                category={item.category?.toUpperCase() || 'GENERAL'}
+                date={item.published_at ? new Date(item.published_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}
+                title={item.title}
+                description={item.content?.slice(0, 160) + (item.content?.length > 160 ? '...' : '')}
+              />
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 
+  // Exact original NewsCard design — props now come from Supabase
   const NewsCard = ({ image, category, date, title, description }) => (
     <div className="flex flex-col">
-      <img 
-        src={image} 
-        alt={title} 
+      <img
+        src={image}
+        alt={title}
         className="w-full object-cover rounded-lg mb-4"
         style={{ height: '200px' }}
+        onError={e => { e.target.src = '/capstoneimage1.jpg'; }}
       />
       <div className="flex items-center gap-3 mb-3">
         <span className="font-work font-bold text-xs tracking-widest" style={{ color: '#FEB300' }}>
@@ -283,9 +294,9 @@ const News = () => {
   // STAY CONNECTED SECTION
   // ============================================
   const StayConnectedSection = () => (
-    <div 
+    <div
       className="mx-auto mb-16 rounded-lg p-12"
-      style={{ 
+      style={{
         marginLeft: isMobile ? '20px' : '100px',
         marginRight: isMobile ? '20px' : '100px',
         backgroundColor: '#001D4E'
@@ -323,20 +334,20 @@ const News = () => {
 
   const NewsletterForm = () => (
     <div className="flex gap-3">
-      <div 
+      <div
         className="flex-1 h-12 px-4 rounded flex items-center"
-        style={{ 
+        style={{
           backgroundColor: '#0F2D5E',
           border: '1px solid #1E3A8A'
         }}
       >
-        <input 
-          type="email" 
+        <input
+          type="email"
           placeholder="Enter your academic email"
           className="w-full bg-transparent text-white text-sm outline-none placeholder-gray-500"
         />
       </div>
-      <button 
+      <button
         className="px-6 py-3.5 rounded font-work font-bold text-sm"
         style={{ backgroundColor: '#FEB300', color: '#6A4800' }}
       >
@@ -439,10 +450,22 @@ const News = () => {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
       <TopNavBar />
-      
+
       <main className="pt-20">
-        <HeroSection />
-        <LatestNewsSection />
+        {loading ? (
+          <div className="flex justify-center items-center" style={{ height: '400px' }}>
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : newsItems.length === 0 ? (
+          <div className="flex justify-center items-center" style={{ height: '400px' }}>
+            <p className="font-public text-sm" style={{ color: '#94A3B8' }}>No published news yet.</p>
+          </div>
+        ) : (
+          <>
+            <HeroSection />
+            {rest.length > 0 && <LatestNewsSection />}
+          </>
+        )}
         <StayConnectedSection />
         <Footer />
       </main>

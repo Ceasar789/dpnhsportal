@@ -1,189 +1,101 @@
 // ============================================
 // FILE: src/pages/auth/ChangePassword.jsx
-// PURPOSE: Change password while logged in
-// DESIGN: Clean form, current + new + confirm password
-// PROTECTED: Requires authentication
+// PURPOSE: Authenticated user changes password — Supabase
 // ============================================
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updatePassword } from 'firebase/auth';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff } from 'lucide-react';
 
 const ChangePassword = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  const { updatePassword, userData } = useAuth();
+  const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showOld, setShowOld] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [showPassword, setShowPassword]       = useState(false);
+  const [isLoading, setIsLoading]             = useState(false);
+  const [message, setMessage]                 = useState('');
+  const [isSuccess, setIsSuccess]             = useState(false);
 
-  // ============================================
-  // HANDLE PASSWORD CHANGE
-  // ============================================
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (newPassword.length < 6) {
-      setMessage('Password must be at least 6 characters');
-      setIsSuccess(false);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setMessage('Passwords do not match');
-      setIsSuccess(false);
-      return;
-    }
+    if (password.length < 8) { setMessage('Password must be at least 8 characters'); return; }
+    if (password !== confirmPassword) { setMessage('Passwords do not match'); return; }
 
     setIsLoading(true);
     setMessage('');
-
     try {
-      await updatePassword(user, newPassword);
-      setMessage('Password changed successfully!');
+      await updatePassword(password);
       setIsSuccess(true);
-      
-      // Clear fields
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setMessage('Password changed successfully!');
+      setTimeout(() => navigate(-1), 2000);
     } catch (error) {
-      console.error('Change password error:', error);
-      setMessage('Failed to change password. Please re-login and try again.');
-      setIsSuccess(false);
+      setMessage('Failed to change password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-10">
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F0F2F5' }}>
       <div className="w-full max-w-md mx-4">
-        <div className="bg-white rounded-lg border p-8" style={{ borderColor: '#E2E8F0' }}>
-          
-          {/* Header */}
-          <h2 className="text-lg font-bold mb-6" style={{ color: '#1a2b4a' }}>
-            Change Password
-          </h2>
+        <div className="bg-white rounded-lg p-10 shadow-sm">
+          <div className="flex flex-col items-center mb-8">
+            <img src="/capstonelogo.png" alt="DPNHS Logo" style={{ width: '60px', height: '60px' }} />
+            <h2 className="text-2xl font-bold mt-4" style={{ color: '#1a2b4a' }}>Change Password</h2>
+            <div className="w-10 h-1 mt-2" style={{ backgroundColor: '#d4a843' }} />
+            {userData?.email && (
+              <p className="text-sm mt-2" style={{ color: '#6B7280' }}>{userData.email}</p>
+            )}
+          </div>
 
-          {/* Alert */}
           {message && (
-            <div 
-              className={`flex items-start gap-2 p-3 rounded-md mb-4 ${
-                isSuccess ? 'bg-green-50' : 'bg-red-50'
-              }`}
-            >
-              {isSuccess ? (
-                <CheckCircle size={18} className="text-green-600 mt-0.5" />
-              ) : (
-                <AlertCircle size={18} className="text-red-500 mt-0.5" />
-              )}
-              <p className={`text-sm flex-1 ${isSuccess ? 'text-green-700' : 'text-red-600'}`}>
-                {message}
-              </p>
+            <div className="flex items-start gap-2 p-3 rounded-md mb-4"
+              style={{ backgroundColor: isSuccess ? '#d1fae5' : '#fee2e2' }}>
+              <span className="text-lg">{isSuccess ? '✅' : '⚠'}</span>
+              <p className="text-sm flex-1" style={{ color: isSuccess ? '#065f46' : '#dc3545' }}>{message}</p>
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            
-            {/* Current Password */}
-            <PasswordField
-              label="CURRENT PASSWORD"
-              value={oldPassword}
-              onChange={setOldPassword}
-              show={showOld}
-              toggle={() => setShowOld(!showOld)}
-              placeholder="••••••••"
-            />
-
-            {/* New Password */}
-            <PasswordField
-              label="NEW PASSWORD"
-              value={newPassword}
-              onChange={setNewPassword}
-              show={showNew}
-              toggle={() => setShowNew(!showNew)}
-              placeholder="Min. 6 characters"
-            />
-
-            {/* Confirm Password */}
-            <PasswordField
-              label="CONFIRM NEW PASSWORD"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              show={showConfirm}
-              toggle={() => setShowConfirm(!showConfirm)}
-              placeholder="Re-enter password"
-            />
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 rounded-md text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 mt-2"
-              style={{ backgroundColor: '#0d2b5c' }}
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {[
+              { label: 'NEW PASSWORD', value: password, setter: setPassword },
+              { label: 'CONFIRM NEW PASSWORD', value: confirmPassword, setter: setConfirmPassword },
+            ].map(({ label, value, setter }) => (
+              <div key={label}>
+                <label className="block text-xs font-semibold tracking-widest mb-2" style={{ color: '#6B7280' }}>{label}</label>
+                <div className="relative">
+                  <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: '#9CA3AF' }} />
+                  <input type={showPassword ? 'text' : 'password'} value={value} onChange={(e) => setter(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-12 pl-12 pr-12 rounded-md text-sm outline-none focus:ring-2"
+                    style={{ backgroundColor: '#F8F9FA', border: '1px solid #E5E7EB' }} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2">
+                    {showPassword ? <EyeOff size={20} style={{ color: '#9CA3AF' }} /> : <Eye size={20} style={{ color: '#9CA3AF' }} />}
+                  </button>
                 </div>
-              ) : (
-                'Update Password'
-              )}
+              </div>
+            ))}
+
+            <button type="submit" disabled={isLoading}
+              className="w-full h-12 rounded-md text-white font-semibold text-base hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{ backgroundColor: '#0d2b5c' }}>
+              {isLoading
+                ? <div className="flex items-center justify-center"><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /></div>
+                : 'Update Password'}
             </button>
           </form>
+
+          <div className="flex justify-center mt-5">
+            <button onClick={() => navigate(-1)} className="text-sm" style={{ color: '#6c757d' }}>
+              ← Go back
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
-
-// ============================================
-// PASSWORD FIELD COMPONENT
-// ============================================
-const PasswordField = ({ label, value, onChange, show, toggle, placeholder }) => (
-  <div>
-    <label className="block text-xs font-semibold tracking-widest mb-2" style={{ color: '#6B7280' }}>
-      {label}
-    </label>
-    <div className="relative">
-      <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: '#9CA3AF' }} />
-      <input
-        type={show ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full h-12 pl-12 pr-12 rounded-md text-sm outline-none focus:ring-2 focus:ring-blue-500"
-        style={{ 
-          backgroundColor: '#F8F9FA',
-          border: '1px solid #E5E7EB'
-        }}
-      />
-      <button
-        type="button"
-        onClick={toggle}
-        className="absolute right-4 top-1/2 -translate-y-1/2"
-      >
-        {show ? (
-          <EyeOff size={20} style={{ color: '#9CA3AF' }} />
-        ) : (
-          <Eye size={20} style={{ color: '#9CA3AF' }} />
-        )}
-      </button>
-    </div>
-  </div>
-);
 
 export default ChangePassword;

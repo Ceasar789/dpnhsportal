@@ -1,27 +1,31 @@
 // ============================================
 // FILE: src/pages/dashboards/StudentDashboard.jsx
-// PURPOSE: Student Dashboard — TeacherDashboard design applied
+// PURPOSE: Student Dashboard — Merged Design
+//          Old version shell (sidebar + header + theme toggle)
+//          Updated version content (tabs + functionality)
+//          Full Light/Dark theme support + Supabase CRUD
 // ROLE: student only
 // FEATURES: Overview, Assignments, Quizzes, Attendance, Announcements
 // ============================================
 
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabase';
 import {
   LayoutDashboard, ClipboardList, FileText, CalendarCheck, Megaphone,
   Search, Moon, Sun, LogOut, Menu, ChevronRight, Clock, CheckCircle,
-  AlertTriangle, BookOpen, Bell
+  AlertTriangle, BookOpen, Bell, Loader2, RefreshCw
 } from 'lucide-react';
 
 // ============================================
-// THEME CONTEXT
+// THEME CONTEXT (from old version — UNCHANGED)
 // ============================================
 const ThemeContext = createContext({ dark: false, toggleDark: () => {} });
 const useTheme = () => useContext(ThemeContext);
 
 // ============================================
-// MAIN STUDENT DASHBOARD
+// MAIN STUDENT DASHBOARD (UNCHANGED STRUCTURE)
 // ============================================
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -50,7 +54,8 @@ const StudentDashboard = () => {
 };
 
 // ============================================
-// STUDENT LAYOUT (Sidebar + Top Header)
+// STUDENT LAYOUT (White Sidebar + Top Header + Theme)
+// ORIGINAL STRUCTURE PRESERVED — only added notification dropdown
 // ============================================
 const StudentLayout = ({ children }) => {
   const { dark, toggleDark } = useTheme();
@@ -58,6 +63,9 @@ const StudentLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = () => {
     logout();
@@ -71,6 +79,55 @@ const StudentLayout = ({ children }) => {
     { path: '/student-dashboard/attendance', icon: CalendarCheck, label: 'Attendance' },
     { path: '/student-dashboard/announcements', icon: Megaphone, label: 'Announcements' },
   ];
+
+  // Fetch notifications from Supabase
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!userData?.uid) return;
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userData.uid)
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!error) {
+        setNotifications(data || []);
+        setUnreadCount(data?.length || 0);
+      }
+    };
+
+    fetchNotifications();
+
+    const channel = supabase
+      .channel('student-notifications')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications',
+        filter: `user_id=eq.${userData?.uid}`
+      }, (payload) => {
+        setNotifications(prev => [payload.new, ...prev].slice(0, 10));
+        setUnreadCount(prev => prev + 1);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [userData?.uid]);
+
+  const markAsRead = async (id) => {
+    await supabase.from('notifications').update({ read: true }).eq('id', id);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  const markAllAsRead = async () => {
+    if (!userData?.uid) return;
+    await supabase.from('notifications').update({ read: true }).eq('user_id', userData.uid);
+    setNotifications([]);
+    setUnreadCount(0);
+  };
 
   const mainBg = dark ? '#0f172a' : '#f1f5f9';
   const headerBorder = dark ? '#334155' : '#e2e8f0';
@@ -87,17 +144,19 @@ const StudentLayout = ({ children }) => {
         />
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR — Theme-aware (ORIGINAL) */}
       <aside
         className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col bg-white
+          fixed lg:static inset-y-0 left-0 z-50 w-64 flex flex-col
           transform transition-transform duration-300 ease-in-out shadow-sm
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
+        style={{ backgroundColor: dark ? '#1e293b' : '#ffffff' }}
       >
         {/* Logo + School Name */}
-        <div className="p-5 border-b border-gray-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <div className="p-5 border-b flex items-center gap-3" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+          <div className="w-10 h-10 rounded-full border flex items-center justify-center flex-shrink-0 overflow-hidden"
+            style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', borderColor: dark ? '#334155' : '#e2e8f0' }}>
             <img 
               src="/capstonelogo.png" 
               alt="School Logo" 
@@ -109,8 +168,8 @@ const StudentLayout = ({ children }) => {
             />
           </div>
           <div>
-            <p className="text-[#1a2b4a] font-bold text-sm leading-tight">Dela Paz National High School</p>
-            <p className="text-gray-400 text-[10px]">Student Portal</p>
+            <p className="font-bold text-sm leading-tight" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Dela Paz National High School</p>
+            <p className="text-[10px]" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Student Portal</p>
           </div>
         </div>
 
@@ -124,13 +183,11 @@ const StudentLayout = ({ children }) => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all mb-0.5
-                  ${isActive
-                    ? 'bg-blue-50 text-[#1e3a5f] font-semibold'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1a2b4a]'
-                  }
-                `}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all mb-0.5"
+                style={{
+                  color: isActive ? '#1e3a5f' : (dark ? '#94a3b8' : '#64748b'),
+                  backgroundColor: isActive ? (dark ? '#0f172a' : '#eff6ff') : 'transparent'
+                }}
               >
                 <Icon size={18} />
                 <span>{item.label}</span>
@@ -141,10 +198,10 @@ const StudentLayout = ({ children }) => {
         </nav>
 
         {/* System Status */}
-        <div className="p-5 border-t border-gray-100">
+        <div className="p-5 border-t" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
           <div className="flex items-center gap-2 px-2">
             <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-xs text-gray-400">All systems online</span>
+            <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>All systems online</span>
           </div>
         </div>
       </aside>
@@ -153,13 +210,14 @@ const StudentLayout = ({ children }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* TOP HEADER */}
         <header
-          className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0 bg-white"
-          style={{ borderColor: headerBorder }}
+          className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0"
+          style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', borderColor: headerBorder }}
         >
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-lg transition-colors text-gray-400 hover:text-[#1a2b4a]"
+              className="lg:hidden p-2 rounded-lg transition-colors"
+              style={{ color: dark ? '#94a3b8' : '#94a3b8' }}
             >
               <Menu size={20} />
             </button>
@@ -168,22 +226,91 @@ const StudentLayout = ({ children }) => {
                 {navItems.find(n => location.pathname === n.path || location.pathname === n.path + '/')?.label || 'Dashboard'}
               </h1>
               <p className="text-xs" style={{ color: textMuted }}>
-                Academic Year 2025–2026 · Last updated: today
+                Academic Year 2025–2026 · Last updated: {new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400">
+            <button
+              className="p-2 rounded-full transition-colors"
+              style={{ color: dark ? '#94a3b8' : '#94a3b8' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#334155' : '#f1f5f9'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
               <Search size={18} />
             </button>
-            <button className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400 relative">
-              <Bell size={18} />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
-            </button>
+
+            {/* Notification Bell with Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                className="p-2 rounded-full transition-colors relative"
+                style={{ color: dark ? '#94a3b8' : '#94a3b8' }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#334155' : '#f1f5f9'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifDropdown(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-80 rounded-xl shadow-xl border z-50 overflow-hidden"
+                    style={{ backgroundColor: dark ? '#1e293b' : '#ffffff', borderColor: dark ? '#334155' : '#e2e8f0' }}>
+                    <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+                      <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button onClick={markAllAsRead} className="text-xs font-medium hover:underline" style={{ color: '#3b82f6' }}>
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <Bell size={32} className="mx-auto mb-2" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+                          <p className="text-xs" style={{ color: textMuted }}>No new notifications</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className="p-3 border-b hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                            style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}
+                            onClick={() => markAsRead(n.id)}>
+                            <div className="flex gap-3">
+                              <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                                n.type === 'success' ? 'bg-green-500' : 
+                                n.type === 'warning' ? 'bg-amber-500' : 
+                                n.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+                              }`} />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium" style={{ color: textPrimary }}>{n.title}</p>
+                                <p className="text-xs mt-0.5" style={{ color: textMuted }}>{n.message}</p>
+                                <p className="text-[10px] mt-1" style={{ color: dark ? '#475569' : '#94a3b8' }}>
+                                  {new Date(n.created_at).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={toggleDark}
-              className="p-2 rounded-full transition-colors hover:bg-gray-100 text-gray-400"
+              className="p-2 rounded-full transition-colors"
+              style={{ color: dark ? '#fbbf24' : '#64748b' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#334155' : '#f1f5f9'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
               title={dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
@@ -197,7 +324,14 @@ const StudentLayout = ({ children }) => {
             </div>
             <button
               onClick={handleLogout}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-gray-500 hover:bg-gray-50 border border-gray-200"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border"
+              style={{ 
+                color: dark ? '#94a3b8' : '#64748b', 
+                borderColor: dark ? '#334155' : '#e2e8f0',
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = dark ? '#334155' : '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <LogOut size={15} />
               Logout
@@ -205,6 +339,7 @@ const StudentLayout = ({ children }) => {
           </div>
         </header>
 
+        {/* CONTENT */}
         <main className="flex-1 overflow-y-auto" style={{ backgroundColor: mainBg }}>
           {children}
         </main>
@@ -214,7 +349,7 @@ const StudentLayout = ({ children }) => {
 };
 
 // ============================================
-// SHARED COMPONENTS
+// SHARED COMPONENTS (Theme-aware from old — UNCHANGED)
 // ============================================
 const Card = ({ children, className = '', style = {} }) => {
   const { dark } = useTheme();
@@ -261,27 +396,100 @@ const StatCard = ({ label, value, sub, subColor, icon: Icon }) => {
 };
 
 // ============================================
-// STUDENT OVERVIEW TAB
+// TOAST HELPER (new but minimal)
+// ============================================
+const useToast = () => {
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+  const Toast = () => toast ? (
+    <div className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg text-white font-semibold z-50 shadow-lg ${
+      toast.type === 'error' ? 'bg-red-500' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-green-500'
+    }`}>{toast.msg}</div>
+  ) : null;
+  return { showToast, Toast };
+};
+
+// ============================================
+// STUDENT OVERVIEW TAB — Supabase + Real-time
+// ORIGINAL DESIGN PRESERVED — data now from Supabase
 // ============================================
 const StudentOverviewTab = () => {
   const { dark } = useTheme();
-  const [studentInfo] = useState({
-    name: 'Juan Dela Cruz',
-    studentId: '2024-001',
-    grade: '10',
-    section: 'A',
-    avgGrade: 88.5,
-    attendanceRate: 95
-  });
+  const { userData } = useAuth();
+  const { showToast, Toast } = useToast();
 
-  const [upcoming] = useState([
-    { type: 'assignment', title: 'Math Problem Set #3', subject: 'Mathematics', due: 'Apr 30, 2024', status: 'pending' },
-    { type: 'quiz', title: 'Science Quiz: Biology', subject: 'Science', due: 'May 2, 2024', status: 'upcoming' },
-    { type: 'assignment', title: 'English Essay', subject: 'English', due: 'May 5, 2024', status: 'pending' },
-  ]);
+  const [studentInfo, setStudentInfo] = useState({
+    name: userData?.name || 'Loading...',
+    studentId: userData?.student_no || '—',
+    grade: '—',
+    section: '—',
+    avgGrade: 0,
+    attendanceRate: 0
+  });
+  const [upcoming, setUpcoming] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Get student profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userData?.uid)
+        .single();
+
+      if (profile) {
+        setStudentInfo({
+          name: profile.name || userData?.name || 'Student',
+          studentId: profile.student_no || '—',
+          grade: profile.year || '—',
+          section: profile.section || '—',
+          avgGrade: profile.avg_grade || 0,
+          attendanceRate: profile.attendance_rate || 0
+        });
+      }
+
+      // Get upcoming assignments & quizzes
+      const [{ data: assignments }, { data: quizzes }] = await Promise.all([
+        supabase.from('assignments').select('*').eq('student_id', userData?.uid).eq('status', 'pending').order('due_date', { ascending: true }).limit(3),
+        supabase.from('quizzes').select('*').eq('student_id', userData?.uid).eq('status', 'upcoming').order('date', { ascending: true }).limit(2)
+      ]);
+
+      const combined = [
+        ...(assignments || []).map(a => ({ type: 'assignment', title: a.title, subject: a.subject, due: new Date(a.due_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }), status: a.status, id: a.id })),
+        ...(quizzes || []).map(q => ({ type: 'quiz', title: q.title, subject: q.subject, due: new Date(q.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }), status: q.status, id: q.id }))
+      ].slice(0, 5);
+
+      setUpcoming(combined);
+    } catch (err) {
+      console.error('Overview fetch error:', err);
+    }
+    setLoading(false);
+  }, [userData?.uid]);
+
+  useEffect(() => {
+    if (userData?.uid) fetchOverview();
+
+    const channels = [
+      supabase.channel('student-overview-assignments')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments', filter: `student_id=eq.${userData?.uid}` }, fetchOverview)
+        .subscribe(),
+      supabase.channel('student-overview-quizzes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes', filter: `student_id=eq.${userData?.uid}` }, fetchOverview)
+        .subscribe()
+    ];
+
+    return () => channels.forEach(ch => supabase.removeChannel(ch));
+  }, [userData?.uid, fetchOverview]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <Toast />
+
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
           Welcome back, {studentInfo.name}!
@@ -292,45 +500,72 @@ const StudentOverviewTab = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatCard label="Average Grade" value={`${studentInfo.avgGrade}%`} icon={BookOpen} />
-        <StatCard label="Attendance" value={`${studentInfo.attendanceRate}%`} icon={CalendarCheck} />
-        <StatCard label="Pending Tasks" value="3" icon={ClipboardList} subColor="#d97706" />
+        <StatCard 
+          label="Average Grade" 
+          value={loading ? <Loader2 className="animate-spin" size={20} /> : `${studentInfo.avgGrade}%`} 
+          icon={BookOpen} 
+        />
+        <StatCard 
+          label="Attendance" 
+          value={loading ? <Loader2 className="animate-spin" size={20} /> : `${studentInfo.attendanceRate}%`} 
+          icon={CalendarCheck} 
+        />
+        <StatCard 
+          label="Pending Tasks" 
+          value={loading ? <Loader2 className="animate-spin" size={20} /> : upcoming.length.toString()} 
+          icon={ClipboardList} 
+          subColor="#d97706" 
+        />
       </div>
 
       <Card className="p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
-          Upcoming Tasks
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+            Upcoming Tasks
+          </h2>
+          <button onClick={fetchOverview} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+            <RefreshCw size={14} />
+          </button>
+        </div>
         <div className="space-y-3">
-          {upcoming.map((task, index) => (
-            <div key={index} className="flex items-center gap-4 p-4 rounded-lg transition-colors"
-              style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: task.type === 'assignment' ? (dark ? '#1e3a5f' : '#eff6ff') : (dark ? '#312e81' : '#f5f3ff') }}>
-                {task.type === 'assignment' ? (
-                  <ClipboardList size={20} style={{ color: '#3b82f6' }} />
-                ) : (
-                  <FileText size={20} style={{ color: '#7c3aed' }} />
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{task.title}</p>
-                <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{task.subject}</p>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
-                  <Clock size={14} />
-                  Due {task.due}
-                </div>
-                <Badge 
-                  color={task.status === 'pending' ? '#d97706' : '#2563eb'}
-                  bg={task.status === 'pending' ? 'rgba(217,119,6,0.12)' : 'rgba(37,99,235,0.12)'}
-                >
-                  {task.status}
-                </Badge>
-              </div>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin" style={{ color: dark ? '#64748b' : '#94a3b8' }} /></div>
+          ) : upcoming.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle size={32} className="mx-auto mb-2" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+              <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No upcoming tasks. You're all caught up!</p>
             </div>
-          ))}
+          ) : (
+            upcoming.map((task, index) => (
+              <div key={task.id || index} className="flex items-center gap-4 p-4 rounded-lg transition-colors"
+                style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: task.type === 'assignment' ? (dark ? '#1e3a5f' : '#eff6ff') : (dark ? '#312e81' : '#f5f3ff') }}>
+                  {task.type === 'assignment' ? (
+                    <ClipboardList size={20} style={{ color: '#3b82f6' }} />
+                  ) : (
+                    <FileText size={20} style={{ color: '#7c3aed' }} />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{task.title}</p>
+                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{task.subject}</p>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-1 text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                    <Clock size={14} />
+                    Due {task.due}
+                  </div>
+                  <Badge 
+                    color={task.status === 'pending' ? '#d97706' : '#2563eb'}
+                    bg={task.status === 'pending' ? 'rgba(217,119,6,0.12)' : 'rgba(37,99,235,0.12)'}
+                  >
+                    {task.status}
+                  </Badge>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>
@@ -338,106 +573,300 @@ const StudentOverviewTab = () => {
 };
 
 // ============================================
-// ASSIGNMENTS TAB
+// ASSIGNMENTS TAB — Supabase CRUD + Real-time
+// ORIGINAL DESIGN PRESERVED
 // ============================================
 const StudentAssignmentsTab = () => {
   const { dark } = useTheme();
-  const assignments = [
-    { title: 'Math Problem Set #3', subject: 'Mathematics', due: 'Apr 30, 2024', status: 'pending', progress: 60 },
-    { title: 'English Essay', subject: 'English', due: 'May 5, 2024', status: 'pending', progress: 30 },
-    { title: 'Science Lab Report', subject: 'Science', due: 'May 10, 2024', status: 'submitted', progress: 100 },
-  ];
+  const { userData } = useAuth();
+  const { showToast, Toast } = useToast();
+
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  const fetchAssignments = useCallback(async () => {
+    setLoading(true);
+    try {
+      let query = supabase.from('assignments').select('*').eq('student_id', userData?.uid).order('due_date', { ascending: true });
+      if (filterStatus !== 'all') query = query.eq('status', filterStatus);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setAssignments(data || []);
+    } catch (err) {
+      showToast('Error fetching assignments', 'error');
+    }
+    setLoading(false);
+  }, [userData?.uid, filterStatus]);
+
+  useEffect(() => {
+    if (userData?.uid) fetchAssignments();
+
+    const channel = supabase
+      .channel('student-assignments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments', filter: `student_id=eq.${userData?.uid}` }, fetchAssignments)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [userData?.uid, filterStatus, fetchAssignments]);
+
+  const handleSubmit = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('assignments')
+        .update({ status: 'submitted', submitted_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+      showToast('Assignment submitted successfully!');
+      fetchAssignments();
+    } catch (err) {
+      showToast('Error submitting assignment', 'error');
+    }
+  };
+
+  const statuses = ['all', 'pending', 'submitted', 'graded'];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-xl font-bold mb-6" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Assignments</h1>
-      <div className="space-y-4">
-        {assignments.map((assignment, i) => (
-          <Card key={i} className="p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{assignment.title}</h3>
-                <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{assignment.subject}</p>
-              </div>
-              <Badge 
-                color={assignment.status === 'submitted' ? '#16a34a' : '#d97706'}
-                bg={assignment.status === 'submitted' ? 'rgba(22,163,74,0.12)' : 'rgba(217,119,6,0.12)'}
-              >
-                {assignment.status}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
-                <div className="h-full rounded-full transition-all"
-                  style={{ width: `${assignment.progress}%`, backgroundColor: assignment.status === 'submitted' ? '#16a34a' : '#FEB300' }} />
-              </div>
-              <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{assignment.progress}%</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
-              <Clock size={14} />
-              Due {assignment.due}
-            </div>
-          </Card>
-        ))}
+      <Toast />
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Assignments</h1>
+        <div className="flex gap-2">
+          {statuses.map(s => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: filterStatus === s ? '#3b82f6' : dark ? '#334155' : '#f1f5f9',
+                color: filterStatus === s ? '#fff' : dark ? '#94a3b8' : '#64748b'
+              }}>
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin" size={32} style={{ color: dark ? '#64748b' : '#94a3b8' }} /></div>
+      ) : assignments.length === 0 ? (
+        <Card className="p-8 text-center">
+          <CheckCircle size={40} className="mx-auto mb-3" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+          <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No assignments found.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {assignments.map((assignment, i) => (
+            <Card key={assignment.id || i} className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{assignment.title}</h3>
+                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{assignment.subject}</p>
+                </div>
+                <Badge 
+                  color={assignment.status === 'submitted' ? '#16a34a' : assignment.status === 'graded' ? '#2563eb' : '#d97706'}
+                  bg={assignment.status === 'submitted' ? 'rgba(22,163,74,0.12)' : assignment.status === 'graded' ? 'rgba(37,99,235,0.12)' : 'rgba(217,119,6,0.12)'}
+                >
+                  {assignment.status}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
+                  <div className="h-full rounded-full transition-all"
+                    style={{ width: `${assignment.progress || 0}%`, backgroundColor: assignment.status === 'submitted' ? '#16a34a' : assignment.status === 'graded' ? '#2563eb' : '#FEB300' }} />
+                </div>
+                <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{assignment.progress || 0}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                  <Clock size={14} />
+                  Due {new Date(assignment.due_date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+                {assignment.status === 'pending' && (
+                  <button onClick={() => handleSubmit(assignment.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-colors hover:opacity-90"
+                    style={{ backgroundColor: '#3b82f6' }}>
+                    Submit
+                  </button>
+                )}
+                {assignment.status === 'graded' && assignment.score !== null && (
+                  <div className="flex items-center gap-1">
+                    <Award size={14} style={{ color: '#FEB300' }} />
+                    <span className="text-sm font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{assignment.score}/{assignment.total_score}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 // ============================================
-// QUIZZES TAB
+// QUIZZES TAB — Supabase + Real-time
+// ORIGINAL DESIGN PRESERVED
 // ============================================
 const StudentQuizzesTab = () => {
   const { dark } = useTheme();
-  const quizzes = [
-    { title: 'Science Quiz: Biology', subject: 'Science', date: 'May 2, 2024', score: null, total: 50 },
-    { title: 'Math Quiz: Algebra', subject: 'Mathematics', date: 'Apr 20, 2024', score: 42, total: 50 },
-    { title: 'History Quiz: WWII', subject: 'Araling Panlipunan', date: 'Apr 15, 2024', score: 38, total: 40 },
-  ];
+  const { userData } = useAuth();
+  const { showToast, Toast } = useToast();
+
+  const [quizzes, setQuizzes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchQuizzes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('student_id', userData?.uid)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      setQuizzes(data || []);
+    } catch (err) {
+      showToast('Error fetching quizzes', 'error');
+    }
+    setLoading(false);
+  }, [userData?.uid]);
+
+  useEffect(() => {
+    if (userData?.uid) fetchQuizzes();
+
+    const channel = supabase
+      .channel('student-quizzes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes', filter: `student_id=eq.${userData?.uid}` }, fetchQuizzes)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [userData?.uid, fetchQuizzes]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-xl font-bold mb-6" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Quizzes</h1>
-      <div className="space-y-4">
-        {quizzes.map((quiz, i) => (
-          <Card key={i} className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{quiz.title}</h3>
-                <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{quiz.subject}</p>
-                <p className="text-xs mt-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{quiz.date}</p>
-              </div>
-              {quiz.score !== null ? (
-                <div className="text-right">
-                  <p className="text-2xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{quiz.score}/{quiz.total}</p>
-                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{((quiz.score/quiz.total)*100).toFixed(0)}%</p>
-                </div>
-              ) : (
-                <Badge color="#2563eb" bg="rgba(37,99,235,0.12)">Upcoming</Badge>
-              )}
-            </div>
-          </Card>
-        ))}
+      <Toast />
+
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Quizzes</h1>
+        <button onClick={fetchQuizzes} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+          <RefreshCw size={16} />
+        </button>
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin" size={32} style={{ color: dark ? '#64748b' : '#94a3b8' }} /></div>
+      ) : quizzes.length === 0 ? (
+        <Card className="p-8 text-center">
+          <FileText size={40} className="mx-auto mb-3" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+          <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No quizzes found.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {quizzes.map((quiz, i) => (
+            <Card key={quiz.id || i} className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{quiz.title}</h3>
+                  <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{quiz.subject}</p>
+                  <p className="text-xs mt-1" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                    {new Date(quiz.date).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                {quiz.score !== null ? (
+                  <div className="text-right">
+                    <p className="text-2xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{quiz.score}/{quiz.total_score || 50}</p>
+                    <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{((quiz.score/(quiz.total_score || 50))*100).toFixed(0)}%</p>
+                    <Badge 
+                      color={quiz.score >= (quiz.total_score || 50) * 0.75 ? '#16a34a' : quiz.score >= (quiz.total_score || 50) * 0.5 ? '#d97706' : '#dc2626'}
+                      bg={quiz.score >= (quiz.total_score || 50) * 0.75 ? 'rgba(22,163,74,0.12)' : quiz.score >= (quiz.total_score || 50) * 0.5 ? 'rgba(217,119,6,0.12)' : 'rgba(220,38,38,0.12)'}
+                    >
+                      {quiz.score >= (quiz.total_score || 50) * 0.75 ? 'Passed' : quiz.score >= (quiz.total_score || 50) * 0.5 ? 'Average' : 'Failed'}
+                    </Badge>
+                  </div>
+                ) : (
+                  <Badge color="#2563eb" bg="rgba(37,99,235,0.12)">Upcoming</Badge>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 // ============================================
-// ATTENDANCE TAB
+// ATTENDANCE TAB — Supabase + Real-time
+// ORIGINAL DESIGN PRESERVED
 // ============================================
 const StudentAttendanceTab = () => {
   const { dark } = useTheme();
+  const { userData } = useAuth();
+  const { showToast, Toast } = useToast();
+
+  const [stats, setStats] = useState({ present: 0, late: 0, absent: 0, total: 0 });
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAttendance = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('student_id', userData?.uid)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      const present = data?.filter(r => r.status === 'present').length || 0;
+      const late = data?.filter(r => r.status === 'late').length || 0;
+      const absent = data?.filter(r => r.status === 'absent').length || 0;
+
+      setStats({ present, late, absent, total: data?.length || 0 });
+      setRecords(data || []);
+    } catch (err) {
+      showToast('Error fetching attendance', 'error');
+    }
+    setLoading(false);
+  }, [userData?.uid]);
+
+  useEffect(() => {
+    if (userData?.uid) fetchAttendance();
+
+    const channel = supabase
+      .channel('student-attendance')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `student_id=eq.${userData?.uid}` }, fetchAttendance)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [userData?.uid, fetchAttendance]);
+
+  const attendanceRate = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-xl font-bold mb-6" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Attendance</h1>
+      <Toast />
+
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>My Attendance</h1>
+        <button onClick={fetchAttendance} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+          <RefreshCw size={16} />
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="p-6 text-center">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
             style={{ backgroundColor: dark ? '#064e3b' : '#dcfce7' }}>
             <CheckCircle size={24} style={{ color: '#16a34a' }} />
           </div>
-          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>45</p>
+          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+            {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : stats.present}
+          </p>
           <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Present</p>
         </Card>
         <Card className="p-6 text-center">
@@ -445,7 +874,9 @@ const StudentAttendanceTab = () => {
             style={{ backgroundColor: dark ? '#713f12' : '#fef3c7' }}>
             <Clock size={24} style={{ color: '#d97706' }} />
           </div>
-          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>2</p>
+          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+            {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : stats.late}
+          </p>
           <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Late</p>
         </Card>
         <Card className="p-6 text-center">
@@ -453,41 +884,177 @@ const StudentAttendanceTab = () => {
             style={{ backgroundColor: dark ? '#450a0a' : '#fee2e2' }}>
             <AlertTriangle size={24} style={{ color: '#dc2626' }} />
           </div>
-          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>1</p>
+          <p className="text-3xl font-bold mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+            {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : stats.absent}
+          </p>
           <p className="text-sm" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Absent</p>
         </Card>
       </div>
+
+      {/* Attendance Rate Bar */}
+      <Card className="p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: dark ? '#64748b' : '#94a3b8' }}>Attendance Rate</h2>
+          <span className="text-sm font-bold" style={{ color: attendanceRate >= 90 ? '#16a34a' : attendanceRate >= 75 ? '#d97706' : '#dc2626' }}>
+            {attendanceRate}%
+          </span>
+        </div>
+        <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: dark ? '#334155' : '#e2e8f0' }}>
+          <div className="h-full rounded-full transition-all" 
+            style={{ width: `${attendanceRate}%`, backgroundColor: attendanceRate >= 90 ? '#16a34a' : attendanceRate >= 75 ? '#FEB300' : '#dc2626' }} />
+        </div>
+        <p className="text-xs mt-2" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+          {stats.total} total days recorded
+        </p>
+      </Card>
+
+      {/* Recent Records */}
+      <Card className="overflow-hidden">
+        <div className="p-4 border-b" style={{ borderColor: dark ? '#334155' : '#e2e8f0' }}>
+          <h2 className="text-sm font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Recent Records</h2>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="animate-spin" style={{ color: dark ? '#64748b' : '#94a3b8' }} /></div>
+        ) : records.length === 0 ? (
+          <div className="p-8 text-center">
+            <CalendarCheck size={40} className="mx-auto mb-3" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+            <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No attendance records yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc' }}>
+                  {['Date', 'Status', 'Subject', 'Notes'].map(h => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: dark ? '#94a3b8' : '#94a3b8' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {records.slice(0, 10).map((r, i) => (
+                  <tr key={r.id || i} className="transition-colors" style={{ borderTop: `1px solid ${dark ? '#334155' : '#e2e8f0'}` }}>
+                    <td className="px-5 py-3.5 text-sm" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>
+                      {new Date(r.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge 
+                        color={r.status === 'present' ? '#16a34a' : r.status === 'late' ? '#d97706' : '#dc2626'}
+                        bg={r.status === 'present' ? 'rgba(22,163,74,0.12)' : r.status === 'late' ? 'rgba(217,119,6,0.12)' : 'rgba(220,38,38,0.12)'}
+                      >
+                        {r.status}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{r.subject || '—'}</td>
+                    <td className="px-5 py-3.5 text-sm" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{r.notes || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
 
 // ============================================
-// ANNOUNCEMENTS TAB
+// ANNOUNCEMENTS TAB — Supabase + Real-time
+// ORIGINAL DESIGN PRESERVED
 // ============================================
 const StudentAnnouncementsTab = () => {
   const { dark } = useTheme();
-  const announcements = [
-    { title: 'Quiz on Monday', content: 'Prepare for Math quiz on Chapter 5', date: 'Apr 25, 2024', from: 'Mr. Santos' },
-    { title: 'Project Deadline Extended', content: 'Science project now due May 10', date: 'Apr 24, 2024', from: 'Ms. Cruz' },
-    { title: 'Field Trip Permission Slip', content: 'Please submit signed forms by Friday', date: 'Apr 23, 2024', from: 'Principal' },
-  ];
+  const { userData } = useAuth();
+  const { showToast, Toast } = useToast();
+
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchAnnouncements = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAnnouncements(data || []);
+    } catch (err) {
+      showToast('Error fetching announcements', 'error');
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchAnnouncements();
+
+    const channel = supabase
+      .channel('student-announcements')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, fetchAnnouncements)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [fetchAnnouncements]);
+
+  const filtered = announcements.filter(a => 
+    a.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    a.content?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-xl font-bold mb-6" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Announcements</h1>
-      <div className="space-y-4">
-        {announcements.map((announcement, i) => (
-          <Card key={i} className="p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge color="#6A4800" bg="#FEB300">NEW</Badge>
-              <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>{announcement.date}</span>
-            </div>
-            <h3 className="font-semibold text-sm mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{announcement.title}</h3>
-            <p className="text-sm mb-2" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{announcement.content}</p>
-            <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>From: {announcement.from}</p>
-          </Card>
-        ))}
+      <Toast />
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <h1 className="text-xl font-bold" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>Announcements</h1>
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: dark ? '#64748b' : '#94a3b8' }} />
+          <input 
+            type="text" 
+            placeholder="Search announcements..." 
+            value={searchQuery} 
+            onChange={e => setSearchQuery(e.target.value)}
+            className="h-9 pl-9 pr-3 rounded-lg text-sm outline-none w-full sm:w-64"
+            style={{ backgroundColor: dark ? '#0f172a' : '#f8fafc', border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`, color: dark ? '#f1f5f9' : '#1a2b4a' }}
+          />
+        </div>
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin" size={32} style={{ color: dark ? '#64748b' : '#94a3b8' }} /></div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Megaphone size={40} className="mx-auto mb-3" style={{ color: dark ? '#334155' : '#cbd5e1' }} />
+          <p style={{ color: dark ? '#64748b' : '#94a3b8' }}>No announcements found.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((announcement, i) => (
+            <Card key={announcement.id || i} className="p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge color="#6A4800" bg="#FEB300">NEW</Badge>
+                <span className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>
+                  {new Date(announcement.created_at).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
+                {announcement.priority === 'high' && (
+                  <Badge color="#dc2626" bg="rgba(220,38,38,0.12)">Important</Badge>
+                )}
+              </div>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: dark ? '#f1f5f9' : '#1a2b4a' }}>{announcement.title}</h3>
+              <p className="text-sm mb-3" style={{ color: dark ? '#94a3b8' : '#64748b' }}>{announcement.content}</p>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                  style={{ backgroundColor: '#1e3a5f' }}>
+                  {(announcement.from || 'A')[0].toUpperCase()}
+                </div>
+                <p className="text-xs" style={{ color: dark ? '#64748b' : '#94a3b8' }}>From: {announcement.from || 'School Admin'}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

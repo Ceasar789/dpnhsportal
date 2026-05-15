@@ -1,24 +1,11 @@
 // ============================================
 // FILE: src/context/AuthContext.jsx
-// PURPOSE: Firebase Authentication Context
-// Handles user authentication, role management, and state persistence
+// PURPOSE: Supabase Authentication Context
+// Replaces: Firebase Auth with Supabase Auth + profiles table
 // ============================================
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile,
-  onAuthStateChanged,
-  sendEmailVerification,
-  updateEmail,
-  setPersistence,
-  browserLocalPersistence,
-  browserSessionPersistence,
-} from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { supabase } from '../config/supabase';
 
 const AuthContext = createContext(null);
 
@@ -30,67 +17,96 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   // ============================================
+  // FETCH PROFILE FROM SUPABASE profiles TABLE
+  // ============================================
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      return null;
+    }
+  };
+
+  // ============================================
   // LISTEN TO AUTH STATE CHANGES
   // ============================================
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        setLoading(true);
-        
-        if (firebaseUser) {
-          setUser(firebaseUser);
+    // Get initial session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        setIsAuthenticated(true);
+        const profile = await fetchProfile(session.user.id);
+        if (profile) {
+          setUserData({
+            uid: session.user.id,
+            email: session.user.email,
+            name: profile.name || session.user.email,
+            photoURL: profile.photo_url || null,
+            emailVerified: session.user.email_confirmed_at != null,
+            role: profile.role || 'student',
+            department: profile.department || null,
+            status: profile.status || 'Active',
+          });
+        }
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user);
           setIsAuthenticated(true);
-          
-          // Get ID token result to access custom claims (role)
-          const idTokenResult = await firebaseUser.getIdTokenResult();
-          
-          // Get user data with role from custom claims or Firestore
-          const userData = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName || 'User',
-            photoURL: firebaseUser.photoURL || null,
-            emailVerified: firebaseUser.emailVerified,
-            // Role is determined from custom claims (set by admin SDK)
-            role: idTokenResult.claims.role || 'student',
-          };
-          
-          setUserData(userData);
+          const profile = await fetchProfile(session.user.id);
+          if (profile) {
+            setUserData({
+              uid: session.user.id,
+              email: session.user.email,
+              name: profile.name || session.user.email,
+              photoURL: profile.photo_url || null,
+              emailVerified: session.user.email_confirmed_at != null,
+              role: profile.role || 'student',
+              department: profile.department || null,
+              status: profile.status || 'Active',
+            });
+          }
         } else {
           setUser(null);
           setUserData(null);
           setIsAuthenticated(false);
         }
-      } catch (err) {
-        console.error('Auth state error:', err);
-        setError(err.message);
-      } finally {
         setLoading(false);
       }
-    });
+    );
 
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   // ============================================
   // LOGIN WITH EMAIL AND PASSWORD
   // ============================================
-  const login = async (email, password, rememberMe = false) => {
+  const login = async (email, password) => {
     try {
       setError(null);
       setLoading(true);
 
-      // Set persistence based on rememberMe:
-      // LOCAL  → survives browser close (remember me ON)
-      // SESSION → cleared when tab/browser closes (remember me OFF)
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Force refresh to get custom claims with role
-      await result.user.getIdTokenResult(true);
-      
-      return result.user;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      return data.user;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -102,22 +118,24 @@ export const AuthProvider = ({ children }) => {
   // ============================================
   // REGISTER NEW USER
   // ============================================
-  const register = async (email, password, displayName = '') => {
+  const register = async (email, password, displayName = '', role = 'student') => {
     try {
       setError(null);
       setLoading(true);
-      
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Set display name
-      if (displayName) {
-        await updateProfile(result.user, { displayName });
-      }
-      
-      // Send email verification
-      await sendEmailVerification(result.user);
-      
-      return result.user;
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: displayName,
+            role: role,
+          },
+        },
+      });
+
+      if (error) throw error;
+      return data.user;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -133,7 +151,8 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       setLoading(true);
-      await signOut(auth);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       setUser(null);
       setUserData(null);
       setIsAuthenticated(false);
@@ -151,7 +170,24 @@ export const AuthProvider = ({ children }) => {
   const sendPasswordReset = async (email) => {
     try {
       setError(null);
-      await sendPasswordResetEmail(auth, email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  // ============================================
+  // UPDATE PASSWORD (after reset)
+  // ============================================
+  const updatePassword = async (newPassword) => {
+    try {
+      setError(null);
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -164,9 +200,11 @@ export const AuthProvider = ({ children }) => {
   const sendVerificationEmail = async () => {
     try {
       setError(null);
-      if (user) {
-        await sendEmailVerification(user);
-      }
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user?.email,
+      });
+      if (error) throw error;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -179,17 +217,26 @@ export const AuthProvider = ({ children }) => {
   const updateUserProfile = async (updates) => {
     try {
       setError(null);
-      
-      if (user) {
-        await updateProfile(user, updates);
-        
-        if (updates.displayName) {
-          setUserData(prev => ({
-            ...prev,
-            name: updates.displayName
-          }));
-        }
-      }
+      if (!user) return;
+
+      // Update profiles table
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: updates.displayName || userData?.name,
+          photo_url: updates.photoURL || userData?.photoURL,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUserData(prev => ({
+        ...prev,
+        name: updates.displayName || prev.name,
+        photoURL: updates.photoURL || prev.photoURL,
+      }));
     } catch (err) {
       setError(err.message);
       throw err;
@@ -199,39 +246,33 @@ export const AuthProvider = ({ children }) => {
   // ============================================
   // ROLE CHECKING HELPER FUNCTIONS
   // ============================================
-  const hasRole = (role) => {
-    return userData?.role === role;
-  };
-
+  const hasRole = (role) => userData?.role === role;
   const isStudent = () => userData?.role === 'student';
   const isTeacher = () => userData?.role === 'teacher';
   const isFaculty = () => userData?.role === 'faculty';
   const isRegistrar = () => userData?.role === 'registrar';
   const isAdmin = () => userData?.role === 'main_admin';
-
-  const hasAnyRole = (roles = []) => {
-    return roles.includes(userData?.role);
-  };
+  const hasAnyRole = (roles = []) => roles.includes(userData?.role);
 
   // ============================================
   // CONTEXT VALUE
   // ============================================
   const value = {
-    // User data
     user,
     userData,
     loading,
     isAuthenticated,
     error,
-    
+
     // Auth methods
     login,
     register,
     logout,
     sendPasswordReset,
+    updatePassword,
     sendVerificationEmail,
     updateUserProfile,
-    
+
     // Role checking
     hasRole,
     isStudent,
@@ -240,6 +281,9 @@ export const AuthProvider = ({ children }) => {
     isRegistrar,
     isAdmin,
     hasAnyRole,
+
+    // Supabase client (for direct queries in components)
+    supabase,
   };
 
   return (
@@ -254,10 +298,8 @@ export const AuthProvider = ({ children }) => {
 // ============================================
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  
   return context;
 };
